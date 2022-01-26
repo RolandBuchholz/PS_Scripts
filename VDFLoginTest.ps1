@@ -1,7 +1,9 @@
+# Add-Type -path "C:\Program Files\Autodesk\Vault Client 2022\Explorer\Autodesk.DataManagement.Client.Framework.Vault.Forms.dll"
+# Add-Type -path "C:\Program Files\Autodesk\Vault Client 2022\Explorer\Autodesk.DataManagement.Client.Framework.Vault.dll"
+# [System.Reflection.Assembly]::LoadFrom($Env:ProgramData + "\Autodesk\Vault 2022\Extensions\DataStandard\Vault.Custom\addinVault\VdsSampleUtilities.dll")
+
 Add-Type -path "C:\Program Files\Autodesk\Vault Client 2021\Explorer\Autodesk.DataManagement.Client.Framework.Vault.Forms.dll"
 Add-Type -path "C:\Program Files\Autodesk\Vault Client 2021\Explorer\Autodesk.DataManagement.Client.Framework.Vault.dll"
-
-[System.Reflection.Assembly]::LoadFrom($Env:ProgramData + "\Autodesk\Vault 2022\Extensions\DataStandard\Vault.Custom\addinVault\VdsSampleUtilities.dll")
 [System.Reflection.Assembly]::LoadFrom($Env:ProgramData + "\Autodesk\Vault 2021\Extensions\DataStandard\Vault.Custom\addinVault\QuickstartUtilityLibrary.dll")
 [System.Reflection.Assembly]::LoadFrom("C:\Work\Administration\Standardeinstellungen\Inventor\Ilogic\Bin\iLogicAdd\QuickstartiLogicLibrary.dll")
 [System.Reflection.Assembly]::LoadFrom("C:\Work\Administration\Standardeinstellungen\Inventor\Ilogic\Bin\iLogicAdd\QuickstartiLogicVltInvSrvLibrary.dll")
@@ -92,10 +94,9 @@ $user = $connection.UserName
 # $InvHelpers = New-Object QuickstartUtilityLibrary.InvHelpers
 # $AcadHelpers = New-Object QuickstartUtilityLibrary.AcadHelpers
 $VltHelpers = New-Object QuickstartUtilityLibrary.VltHelpers
-$VltHelpers2 = New-Object VdsSampleUtilities.VltHelpers
 
 
-$VltHelpers2
+
 
 
 $Path = "$/Administration/Vault.ico"

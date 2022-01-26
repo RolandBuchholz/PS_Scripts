@@ -14,6 +14,7 @@
      [String]Auftragsnummer
      [bool]ReadOnly  
 .RETURNVALUE
+     $downloadresult
      $errCode
 .COMPONENT
      Vault Server
@@ -24,6 +25,16 @@ Param(
     [String]$Auftragsnummer,
     [bool]$ReadOnly = $false       
 )
+
+class DownloadInfo {
+    [bool]$Success
+    [string]$FileName
+    [string]$FullFileName
+    [bool]$IsCheckOut
+    [string]$CheckOutBy
+}
+
+$downloadresult = [DownloadInfo]::new()
    
 # Vault Login
 
@@ -41,6 +52,8 @@ try {
 }
 catch {
     $errCode = 2 #Login fehlgeschlagen
+    $downloadresult.Success = $false
+    Write-Output (ConvertTo-Json $downloadresult)
     $Host.SetShouldExit([int]$errCode)
     exit
 }
@@ -60,8 +73,6 @@ try {
 
         $vaultFiles += Get-VaultFiles -FileName $downloadFiles[$i]
     }
-
-
     if ($vaultFiles.count -gt 0) {
         $WorkFolderPath = $vaultFiles[0].Path.TrimStart("$") -replace "/AUFTRÄGE", "C:/Work/AUFTRÄGE"
     }
@@ -103,28 +114,28 @@ try {
     Else {
         Write-Host "Auftrag $Auftragsnummer nicht gefunden! Prüfen Sie ob im Vault bereits ein Auftrag angelegt worden ist!!"
         $vault.Dispose() #Vault Connection schließen
-
+        $downloadresult.Success = $false
+        Write-Output (ConvertTo-Json $downloadresult)
         $errCode = 1 # Datei download ist fehlgeschlagen
-
         $Host.SetShouldExit([int]$errCode)
         exit
     }
-
-    #Read-Host Debug
-
     $vault.Dispose() #Vault Connection schließen
-
+    $downloadresult.Success = $true
+    $downloadresult.FileName = "" #<==== Wert noch setzen
+    $downloadresult.FullFileName = "" #<==== Wert noch setzen
+    $downloadresult.IsCheckOut = $false  #<==== Wert noch setzen
+    $downloadresult.CheckOutBy = $null  #<==== Wert noch setzen
+    Write-Output (ConvertTo-Json $downloadresult)
     $errCode = 0
-
     $Host.SetShouldExit([int]$errCode)
     exit
 }
 catch {
     $vault.Dispose() #Vault Connection schließen
-
+    $downloadresult.Success = $false
+    Write-Output (ConvertTo-Json $downloadresult)
     $errCode = 1 # Datei download ist fehlgeschlagen
-
     $Host.SetShouldExit([int]$errCode)
     exit
-
 }
