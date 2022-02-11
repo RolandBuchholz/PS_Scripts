@@ -1,19 +1,13 @@
-# Add-Type -path "C:\Program Files\Autodesk\Vault Client 2022\Explorer\Autodesk.DataManagement.Client.Framework.Vault.Forms.dll"
-# Add-Type -path "C:\Program Files\Autodesk\Vault Client 2022\Explorer\Autodesk.DataManagement.Client.Framework.Vault.dll"
-# [System.Reflection.Assembly]::LoadFrom($Env:ProgramData + "\Autodesk\Vault 2022\Extensions\DataStandard\Vault.Custom\addinVault\VdsSampleUtilities.dll")
-
-Add-Type -path "C:\Program Files\Autodesk\Vault Client 2021\Explorer\Autodesk.DataManagement.Client.Framework.Vault.Forms.dll"
-Add-Type -path "C:\Program Files\Autodesk\Vault Client 2021\Explorer\Autodesk.DataManagement.Client.Framework.Vault.dll"
-[System.Reflection.Assembly]::LoadFrom($Env:ProgramData + "\Autodesk\Vault 2021\Extensions\DataStandard\Vault.Custom\addinVault\QuickstartUtilityLibrary.dll")
-[System.Reflection.Assembly]::LoadFrom("C:\Work\Administration\Standardeinstellungen\Inventor\Ilogic\Bin\iLogicAdd\QuickstartiLogicLibrary.dll")
-[System.Reflection.Assembly]::LoadFrom("C:\Work\Administration\Standardeinstellungen\Inventor\Ilogic\Bin\iLogicAdd\QuickstartiLogicVltInvSrvLibrary.dll")
+Add-Type -path "C:\Program Files\Autodesk\Vault Client 2022\Explorer\Autodesk.DataManagement.Client.Framework.Vault.Forms.dll"
+Add-Type -path "C:\Program Files\Autodesk\Vault Client 2022\Explorer\Autodesk.DataManagement.Client.Framework.Vault.dll"
+[System.Reflection.Assembly]::LoadFrom($Env:ProgramData + "\Autodesk\Vault 2022\Extensions\DataStandard\Vault.Custom\addinVault\VdsSampleUtilities.dll")
 
 $ReadOnly = $false
 $ReadOnly = $true     
 
 if ($ReadOnly) {
     try {
-        $serverName = "192.168.0.1:8080"
+        $serverName = "192.168.0.1"
         $vaultName = "vault"
         $vaultUser = "BE-Automation"
         $vaultPw = "BE-Automation"
@@ -33,7 +27,7 @@ if ($ReadOnly) {
 else {
     try {
         $settings = New-Object Autodesk.DataManagement.Client.Framework.Vault.Forms.Settings.LoginSettings
-        $settings.ServerName = "192.168.0.1:8080"
+        $settings.ServerName = "192.168.0.1"
         $settings.VaultName = "vault"
         $settings.AutoLoginMode = 3
         $connection = [Autodesk.DataManagement.Client.Framework.Vault.Forms.Library]::Login($settings)
@@ -74,39 +68,22 @@ function FindFile($fileName) {
     return $totalResults;
 }
 
-
-
-
 $vault = $connection.WebServiceManager
 
-
-
-$downloadFullFileName = FindFile("1001042-AutoDeskTransfer.xml")
+# $downloadFullFileName = FindFile("1001042-AutoDeskTransfer.xml")
 
 
 $user = $connection.UserName
-
-# $ILogicLibrary = New-Object QuickstartiLogicLibrary.QuickstartiLogicLib
-
-
-# $ILogicLibrarySrv = New-Object QuickstartiLogicVltInvSrvLibrary.iLogicVltInvSrvLibrary
-
-# $InvHelpers = New-Object QuickstartUtilityLibrary.InvHelpers
-# $AcadHelpers = New-Object QuickstartUtilityLibrary.AcadHelpers
-$VltHelpers = New-Object QuickstartUtilityLibrary.VltHelpers
-
-
-
-
+$VltHelpers = New-Object VdsSampleUtilities.VltHelpers
 
 $Path = "$/Administration/Vault.ico"
 $Test = $VltHelpers.mGetFileByFullFileName($connection, $Path)
 
+$SearchCriteria = New-Object 'system.collections.generic.dictionary[string,string]'
+$SearchCriteria.Add("Name", "1001042-AutoDeskTransfer.xml")
 
-# $Test = $ILogicLibrarySrv.GetFileByFullFilePath($Path)
-# $Test
-
-
+$Test2 = $VltHelpers.GetFileBySearchCriteria($connection, $SearchCriteria)
+$Test2
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 $window = New-Object System.Windows.Forms.Form
@@ -127,7 +104,7 @@ $window.Controls.Add($Label)
 $window.Controls.Add($Label2)
 [void]$window.ShowDialog()
 
-$vault.Dispose()
+# $vault.Dispose()
 $logOff = [Autodesk.DataManagement.Client.Framework.Vault.Library]::ConnectionManager.LogOut($connection)
-
+$logOff
 

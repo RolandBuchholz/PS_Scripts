@@ -23,42 +23,117 @@
 Param(
     [Parameter(Mandatory = $true)]          
     [String]$Auftragsnummer,
-    [bool]$ReadOnly = $false       
+    [bool]$ReadOnly = $false    
 )
 
 class DownloadInfo {
-    [bool]$Success
+    [bool]$Success = $null
     [string]$FileName
     [string]$FullFileName
-    [bool]$IsCheckOut
-    [string]$CheckOutBy
+    [string]$CheckOutState
+    [bool]$IsCheckOut = $null
+    [string]$CheckOutPC
+    [string]$EditedBy
+    [string]$ErrorState
+}
+
+try {
+    Add-Type -path "C:\Program Files\Autodesk\Vault Client 2022\Explorer\Autodesk.DataManagement.Client.Framework.Vault.Forms.dll"
+    Add-Type -path "C:\Program Files\Autodesk\Vault Client 2022\Explorer\Autodesk.DataManagement.Client.Framework.Vault.dll"
+    [System.Reflection.Assembly]::LoadFrom($Env:ProgramData + "\Autodesk\Vault 2022\Extensions\DataStandard\Vault.Custom\addinVault\VdsSampleUtilities.dll")
+}
+catch {
+    Write-Host "Vault Client 2022 oder DataStandard wurde nicht gefunden!"
+    $errCode = 9 #Vault Client 2022 oder DataStandard wurde nicht gefunden
+    $downloadresult.Success = $false
+    LogOut($downloadresult)
 }
 
 $downloadresult = [DownloadInfo]::new()
-   
-# Vault Login
-
-try {
-    Import-Module powerVault
-    Initialize-VDF
-    #Create-LogRepository
-    #Get-LogRepository
-    Get-VaultInstallationDirectory
-
-    $vaultUser = "BE-Automation"
-    $vaultPw = "BE-Automation"
-
-    Open-VaultConnection -Password $vaultpW -Server 192.168.0.1:8080 -User $vaultUser -Vault vault
-}
-catch {
-    $errCode = 2 #Login fehlgeschlagen
-    $downloadresult.Success = $false
-    Write-Output (ConvertTo-Json $downloadresult)
+function LogOut {
+    param (
+        [DownloadInfo]$downloadinfo
+    )
+    Write-Host "---DownloadInfo---" 
+    Write-Output (ConvertTo-Json $downloadinfo)
+    Write-Host "---DownloadInfo---"
+    if ($null -ne $connection) {
+        # $vault.Dispose()
+        $logOff = [Autodesk.DataManagement.Client.Framework.Vault.Library]::ConnectionManager.LogOut($connection) #Vault Connection schließen
+    }
     $Host.SetShouldExit([int]$errCode)
     exit
 }
+# Auftragsnummervalidierung
+if (($Auftragsnummer.Length -eq 6 -or $Auftragsnummer.Length -eq 7) -and $Auftragsnummer -match '^\d+$') {
+    $Auftrag = $true
+}
+elseif ($Auftragsnummer -match '[0-9]{2}[-][0-9]{2}[-][0-9]{4}') {
+    $Angebot = $true
+}
+else {
+    $errCode = 6 #Invalide Auftrags bzw. Angebotsnummer
+    $downloadresult.Success = $false
+    LogOut($downloadresult)
+}
+# Vault Login
+if ($ReadOnly) {
+    try {
+        $serverName = "192.168.0.1"
+        $vaultName = "vault"
+        $vaultUser = "BE-Automation"
+        $vaultPw = "BE-Automation"
+        $authenticationFlags = [Autodesk.DataManagement.Client.Framework.Vault.Currency.Connections.AuthenticationFlags]::ReadOnly
+        $vdfResults = [Autodesk.DataManagement.Client.Framework.Vault.Library]::ConnectionManager.LogIn($serverName, $vaultName, $vaultUser, $vaultPw, $authenticationFlags, $null)
+        
+        if ($vdfResults.Success) {
+            $connection = $vdfResults.Connection;
+        }
+    }
+    catch {
+        $errCode = 2 #Login fehlgeschlagen
+        $downloadresult.Success = $false
+        LogOut($downloadresult)
+    }
+}
+else {
+    try {
+
+        $AdskLicensing = "C:\Windows\System32\WindowsPowerShell\v1.0\AdskLicensingSDK_5.dll"
+        if (!(Test-Path $AdskLicensing -PathType leaf)) {
+            try {
+                Copy-Item -Path "C:\Program Files\Autodesk\Vault Client 2022\Explorer\AdskLicensingSDK_5.dll" -Destination "C:\Windows\System32\WindowsPowerShell\v1.0\AdskLicensingSDK_5.dll"
+            }
+            catch {
+                Write-Host "AdskLicensingSDK_5.dll wurde nicht gefunden!"
+                $errCode = 8 #Fehlende AdskLicensingSDK_5.dll
+                $downloadresult.Success = $false
+                LogOut($downloadresult)
+            } 
+        }
+
+        $settings = New-Object Autodesk.DataManagement.Client.Framework.Vault.Forms.Settings.LoginSettings
+        $settings.ServerName = "192.168.0.1"
+        $settings.VaultName = "vault"
+        $settings.AutoLoginMode = 3
+        $connection = [Autodesk.DataManagement.Client.Framework.Vault.Forms.Library]::Login($settings)
+
+        if ($null -eq $connection) {
+            $settings.AutoLoginMode = 1
+            $connection = [Autodesk.DataManagement.Client.Framework.Vault.Forms.Library]::Login($settings)
+        }
+    }
+    catch {
+        $errCode = 2 #Login fehlgeschlagen
+        $downloadresult.Success = $false
+        LogOut($downloadresult)
+    }   
+}
 
 try {
+    
+    $VltHelpers = New-Object VdsSampleUtilities.VltHelpers
+
     #Dateinamen der benötigten Dateien
     $downloadFiles = @()
     $downloadFiles += $Auftragsnummer + "-AutoDeskTransfer.xml"
@@ -67,75 +142,85 @@ try {
     $downloadFiles += $Auftragsnummer + ".dat"
     $downloadFiles += $Auftragsnummer + ".LILO"
 
-    #Dateien im Vault suchen und den Arbeitsbereich ermitteln 
+    #Dateien im Vault suchen (auschecken) und den Arbeitsbereich ermitteln1
+    $SearchCriteria = New-Object 'system.collections.generic.dictionary[string,string]'
+    $SearchCriteria.Add("Name", "")
+
     $vaultFiles = @()
     for ($i = 0; $i -le $downloadFiles.Count - 1; $i++) {
-
-        $vaultFiles += Get-VaultFiles -FileName $downloadFiles[$i]
+        $SearchCriteria["Name"] = $downloadFiles[$i]
+        $CheckOutFiles = !($ReadOnly)
+        $vaultFile = $VltHelpers.GetFileBySearchCriteria($connection, $SearchCriteria, $true, $CheckOutFiles)
+        
+        switch ( $vaultFile ) {
+            $null {
+                Write-Host "Datei wurde im Vault nicht gefunden. Überprüfen Sie Ihre Eingabe!"-ForegroundColor DarkRed
+                $downloadresult.Success = $false
+                $errCode = 7 # Datei download ist fehlgeschlagen
+                LogOut($downloadresult) 
+            }
+            "File not found" {
+                if ($downloadFiles[$i] -match "-AutoDeskTransfer.xml") {
+                    Write-Host "Datei wurde im Vault nicht gefunden. Überprüfen Sie Ihre Eingabe!"-ForegroundColor DarkRed
+                    $downloadresult.Success = $false
+                    $errCode = 7 # Datei download ist fehlgeschlagen
+                    LogOut($downloadresult) 
+                }
+            }
+            "CheckOut failed" {
+                if ($downloadFiles[$i] -match "-AutoDeskTransfer.xml") {
+                    $vaultFile = $VltHelpers.GetFileBySearchCriteria($connection, $SearchCriteria, $true, $false)
+                    if (($null -ne $vaultFile) -and ($vaultFile -ne "File not found")) {
+                        $vaultFiles += $vaultFile
+                    }
+                    else {
+                        Write-Host "Datei wurde im Vault nicht gefunden. Überprüfen Sie Ihre Eingabe!"-ForegroundColor DarkRed
+                        $downloadresult.Success = $false
+                        $errCode = 7 # Datei download ist fehlgeschlagen
+                        LogOut($downloadresult)
+                    }
+                }
+            }
+            default {
+                $vaultFiles += $vaultFile 
+            }          
+        }
     }
+
     if ($vaultFiles.count -gt 0) {
-        $WorkFolderPath = $vaultFiles[0].Path.TrimStart("$") -replace "/AUFTRÄGE", "C:/Work/AUFTRÄGE"
+        $WorkFolderPath = $vaultFiles[0] -replace $downloadFiles[0], ""
     }
     #Verzeichnissstruktur anlegen
-    if (!(Test-Path $WorkFolderPath"/Berechnungen")) { New-Item -Path $WorkFolderPath"/Berechnungen" -ItemType Directory }
-    if (!(Test-Path $WorkFolderPath"/Berechnungen/PDF")) { New-Item -Path $WorkFolderPath"/Berechnungen/PDF" -ItemType Directory }
-    if (!(Test-Path $WorkFolderPath"/Bestellungen")) { New-Item -Path $WorkFolderPath"/Bestellungen" -ItemType Directory }
-    if (!(Test-Path $WorkFolderPath"/Bgr00")) { New-Item -Path $WorkFolderPath"/Bgr00" -ItemType Directory }
-    if (!(Test-Path $WorkFolderPath"/Bgr00/CAD-CFP")) { New-Item -Path $WorkFolderPath"/Bgr00/CAD-CFP" -ItemType Directory }
-    if (!(Test-Path $WorkFolderPath"/Fotos")) { New-Item -Path $WorkFolderPath"/Fotos" -ItemType Directory }
-    if (!(Test-Path $WorkFolderPath"/SV")) { New-Item -Path $WorkFolderPath"/SV" -ItemType Directory }
-    if (!(Test-Path $WorkFolderPath"/Montage-TÜV-Dokumentation")) { New-Item -Path $WorkFolderPath"/Montage-TÜV-Dokumentation" -ItemType Directory }
-    if (!(Test-Path $WorkFolderPath"/Montage-TÜV-Dokumentation/TÜV")) { New-Item -Path $WorkFolderPath"/Montage-TÜV-Dokumentation/TÜV" -ItemType Directory }
-    if (!(Test-Path $WorkFolderPath"/Montage-TÜV-Dokumentation/TÜV/Zertifikate")) { New-Item -Path $WorkFolderPath"/Montage-TÜV-Dokumentation/TÜV/Zertifikate" -ItemType Directory }
-
-    #Dateien werden ausgechecked
-    $downloadTicket = New-Object Autodesk.Connectivity.WebServices.ByteArray
-
-    for ($i = 0; $i -le $vaultFiles.Count - 1; $i++) {
-
-        If ($vaultFiles[$i].IsCheckedOut) {
-            Write-Host "Datei"$vaultFiles[$i]._Name"ist bereits ausgechecked!"  
-        }
-        Else {
-            $checkedOutFile = $vault.DocumentService.CheckoutFile($vaultFiles[$i].Id, "Master", $env:COMPUTERNAME, $WorkFolderPath, "Für automatsische Bearbeitung abgerufen.", [ref]$downloadTicket)
-            Write-Host "Datei"$vaultFiles[$i]._Name"wurde ausgechecked!"   
-        }
+    if ($WorkFolderPath.StartsWith("C:\Work\AUFTRÄGE NEU")) {
+        if (!(Test-Path $WorkFolderPath"Berechnungen")) { New-Item -Path $WorkFolderPath"Berechnungen" -ItemType Directory }
+        if (!(Test-Path $WorkFolderPath"Berechnungen/PDF")) { New-Item -Path $WorkFolderPath"Berechnungen/PDF" -ItemType Directory }
+        if (!(Test-Path $WorkFolderPath"Bestellungen")) { New-Item -Path $WorkFolderPath"Bestellungen" -ItemType Directory }
+        if (!(Test-Path $WorkFolderPath"Bgr00")) { New-Item -Path $WorkFolderPath"Bgr00" -ItemType Directory }
+        if (!(Test-Path $WorkFolderPath"Bgr00/CAD-CFP")) { New-Item -Path $WorkFolderPath"Bgr00/CAD-CFP" -ItemType Directory }
+        if (!(Test-Path $WorkFolderPath"Fotos")) { New-Item -Path $WorkFolderPath"Fotos" -ItemType Directory }
+        if (!(Test-Path $WorkFolderPath"SV")) { New-Item -Path $WorkFolderPath"SV" -ItemType Directory }
+        if (!(Test-Path $WorkFolderPath"Montage-TÜV-Dokumentation")) { New-Item -Path $WorkFolderPath"Montage-TÜV-Dokumentation" -ItemType Directory }
+        if (!(Test-Path $WorkFolderPath"Montage-TÜV-Dokumentation/TÜV")) { New-Item -Path $WorkFolderPath"Montage-TÜV-Dokumentation/TÜV" -ItemType Directory }
+        if (!(Test-Path $WorkFolderPath"Montage-TÜV-Dokumentation/TÜV/Zertifikate")) { New-Item -Path $WorkFolderPath"Montage-TÜV-Dokumentation/TÜV/Zertifikate" -ItemType Directory }
     }
-
-    #Dateien werden in den Arbeitsbereich geladen
-    if ($vaultFiles.count -gt 0) {
-        for ($i = 0; $i -le $vaultFiles.Count - 1; $i++) {
-            $downloadFile = Save-VaultFile -File $vaultFiles[$i].'Full Path'
-            $downloadFullFileName = $vaultFiles[$i]._FullPath.TrimStart("$") -replace "/AUFTRÄGE", "C:/Work/AUFTRÄGE"
-            Set-ItemProperty $downloadFullFileName -Name IsReadOnly -Value $false
-            Write-Host "Datei"$vaultFiles[$i]._Name"wurde heruntergeladen!"
-        }
-    }
-    Else {
-        Write-Host "Auftrag $Auftragsnummer nicht gefunden! Prüfen Sie ob im Vault bereits ein Auftrag angelegt worden ist!!"
-        $vault.Dispose() #Vault Connection schließen
-        $downloadresult.Success = $false
-        Write-Output (ConvertTo-Json $downloadresult)
-        $errCode = 1 # Datei download ist fehlgeschlagen
-        $Host.SetShouldExit([int]$errCode)
-        exit
-    }
-    $vault.Dispose() #Vault Connection schließen
+    #FileStatus auslesen 
+    $FileStatus = New-Object 'system.collections.generic.dictionary[string,string]'
+    $FileStatus = $VltHelpers.GetVaultFileStatus($connection, $vaultFiles[0]) 
+    
     $downloadresult.Success = $true
-    $downloadresult.FileName = "" #<==== Wert noch setzen
-    $downloadresult.FullFileName = "" #<==== Wert noch setzen
-    $downloadresult.IsCheckOut = $false  #<==== Wert noch setzen
-    $downloadresult.CheckOutBy = $null  #<==== Wert noch setzen
-    Write-Output (ConvertTo-Json $downloadresult)
+    $downloadresult.FileName = $FileStatus["FileName"]
+    $downloadresult.FullFileName = $FileStatus["FullFileName"]
+    $downloadresult.CheckOutState = $FileStatus["CheckOutState"]
+    $downloadresult.IsCheckOut = [System.Convert]::ToBoolean($FileStatus["CheckOut"])
+    $downloadresult.CheckOutPC = $FileStatus["CheckOutPC"]
+    $downloadresult.EditedBy = $FileStatus["EditedBy"]
+    $downloadresult.ErrorState = $FileStatus["ErrorState"]
+
     $errCode = 0
-    $Host.SetShouldExit([int]$errCode)
-    exit
+    LogOut($downloadresult)
 }
 catch {
-    $vault.Dispose() #Vault Connection schließen
     $downloadresult.Success = $false
-    Write-Output (ConvertTo-Json $downloadresult)
     $errCode = 1 # Datei download ist fehlgeschlagen
-    $Host.SetShouldExit([int]$errCode)
-    exit
+    LogOut($downloadresult)
 }

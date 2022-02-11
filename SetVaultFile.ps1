@@ -6,58 +6,121 @@
      File Name : SetVaultFile.ps1
      Author : Buchholz Roland – roland.buchholz@berchtenbreiter-gmbh.de
 .VERSION
-     Version 0.8 – Dateibereinigung angepasst
+     Version 0.9 – VDF Login
 .EXAMPLE
      Beispiel wie das Script aufgerufen wird > SetVaultFile.ps1 -Auftragsnummer „8951234“
 .INPUTTYPE
      Auftragsnummer 
 .RETURNVALUE
-     Void
+     $downloadresult
+     $errCode
 .COMPONENT
      Vault Server
 #>
 
        
-Param(            
-    [String]$Auftragsnummer           
+Param(
+    [Parameter(Mandatory = $true)]          
+    [String]$Auftragsnummer
 )
 
+class DownloadInfo {
+    [bool]$Success = $null
+    [string]$FileName
+    [string]$FullFileName
+    [string]$CheckOutState
+    [bool]$IsCheckOut = $null
+    [string]$CheckOutPC
+    [string]$EditedBy
+    [string]$ErrorState
+}
+
+try {
+    Add-Type -path "C:\Program Files\Autodesk\Vault Client 2022\Explorer\Autodesk.DataManagement.Client.Framework.Vault.Forms.dll"
+    Add-Type -path "C:\Program Files\Autodesk\Vault Client 2022\Explorer\Autodesk.DataManagement.Client.Framework.Vault.dll"
+    [System.Reflection.Assembly]::LoadFrom($Env:ProgramData + "\Autodesk\Vault 2022\Extensions\DataStandard\Vault.Custom\addinVault\VdsSampleUtilities.dll")
+}
+catch {
+    Write-Host "Vault Client 2022 oder DataStandard wurde nicht gefunden!"
+    $errCode = 9 #Vault Client 2022 oder DataStandard wurde nicht gefunden
+    $downloadresult.Success = $false
+    LogOut($downloadresult)
+}
+
+$downloadresult = [DownloadInfo]::new()
+function LogOut {
+    param (
+        [DownloadInfo]$downloadinfo
+    )
+    Write-Host "---DownloadInfo---" 
+    Write-Output (ConvertTo-Json $downloadinfo)
+    Write-Host "---DownloadInfo---"
+    if ($null -ne $connection) {
+        # $vault.Dispose()
+        $logOff = [Autodesk.DataManagement.Client.Framework.Vault.Library]::ConnectionManager.LogOut($connection) #Vault Connection schließen
+    }
+    $Host.SetShouldExit([int]$errCode)
+    exit
+}
+# Auftragsnummervalidierung
+if (($Auftragsnummer.Length -eq 6 -or $Auftragsnummer.Length -eq 7) -and $Auftragsnummer -match '^\d+$') {
+    $Auftrag = $true
+}
+elseif ($Auftragsnummer -match '[0-9]{2}[-][0-9]{2}[-][0-9]{4}') {
+    $Angebot = $true
+}
+else {
+    $errCode = 6 #Invalide Auftrags bzw. Angebotsnummer
+    $downloadresult.Success = $false
+    LogOut($downloadresult)
+}
 # Vault Login
 
 try {
-    Import-Module powerVault
-    Initialize-VDF
-    #Create-LogRepository
-    #Get-LogRepository
-    Get-VaultInstallationDirectory
 
-    $vaultUser = "BE-Automation"
-    $vaultPw = "BE-Automation"
+    $AdskLicensing = "C:\Windows\System32\WindowsPowerShell\v1.0\AdskLicensingSDK_5.dll"
+    if (!(Test-Path $AdskLicensing -PathType leaf)) {
+        try {
+            Copy-Item -Path "C:\Program Files\Autodesk\Vault Client 2022\Explorer\AdskLicensingSDK_5.dll" -Destination "C:\Windows\System32\WindowsPowerShell\v1.0\AdskLicensingSDK_5.dll"
+        }
+        catch {
+            Write-Host "AdskLicensingSDK_5.dll wurde nicht gefunden!"
+            $errCode = 8 #Fehlende AdskLicensingSDK_5.dll
+            LogOut($downloadresult)
+        } 
+    }
 
-    Open-VaultConnection -Password $vaultpW -Server 192.168.0.1:8080 -User $vaultUser -Vault vault
+    $settings = New-Object Autodesk.DataManagement.Client.Framework.Vault.Forms.Settings.LoginSettings
+    $settings.ServerName = "192.168.0.1"
+    $settings.VaultName = "vault"
+    $settings.AutoLoginMode = 3
+    $connection = [Autodesk.DataManagement.Client.Framework.Vault.Forms.Library]::Login($settings)
+
+    if ($null -eq $connection) {
+        $settings.AutoLoginMode = 1
+        $connection = [Autodesk.DataManagement.Client.Framework.Vault.Forms.Library]::Login($settings)
+    }
 }
 catch {
-    $errCode = "2" #Login fehlgeschlagen
-    $Host.SetShouldExit($errCode -as [int])
-    exit
-}
+    $errCode = 2 #Login fehlgeschlagen
+    $downloadresult.Success = $false
+    LogOut($downloadresult)
+}   
 
 try {
-
-    #$Auftragsnummer = "1001042"
-
     #Quellpfad ermitteln
     $seachFile = $Auftragsnummer + "-AutoDeskTransfer.xml"
     $sourceFile = Get-ChildItem -Path "C:\Work\AUFTRÄGE NEU\" -Recurse -Include $seachFile
     if ($sourceFile.Count -gt 1) {
-        $vault.Dispose() #Vault Connection schließen
-        $errCode = "5"# AutoDeskTransferXml mehrfach im Arbeitsbereich vorhanden.
         Write-Host "AutoDeskTransferXml mehrfach im Arbeitsbereich vorhanden."-ForegroundColor DarkRed
-        $Host.SetShouldExit($errCode -as [int])
+        $errCode = "5"# AutoDeskTransferXml mehrfach im Arbeitsbereich vorhanden.
+        $downloadresult.Success = $false
+        LogOut($downloadresult)
     }
-    $sourcePath = $sourceFile.DirectoryName.Replace("\", "/") + "/"
-    $targetPath = $sourcePath.Replace("C:/Work", "$")
 
+    $VltHelpers = New-Object VdsSampleUtilities.VltHelpers
+    $sourcePath = $sourceFile.DirectoryName.Replace("\", "/") + "/"
+    $targetPath = $VltHelpers.ConvertLocalPathToVaultPath($connection, $sourceFile)
     #Dateinamen der einzucheckenden
 
     $pathExtBerechnungen = "Berechnungen/"
@@ -83,7 +146,6 @@ try {
     if (Test-Path ($sourcePath + $pathExtCAD)) { $cadFiles = Get-ChildItem -Path ($sourcePath + $pathExtCAD) -Filter  *.dwg }
     if (Test-Path ($sourcePath + $pathExtTUEVZertifikate)) { $zertifikateFiles = Get-ChildItem -Path ($sourcePath + $pathExtTUEVZertifikate) -Filter  *.pdf }
  
-
     foreach ($berechnungensPDF in $berechnungenPDFFiles) {
         $uploadFiles += $pathExtBerechnungenPDF + $berechnungensPDF
     }
@@ -96,11 +158,11 @@ try {
         $uploadFiles += $pathExtTUEVZertifikate + $zertifikateFile
     }
         
-    
     #Prüfen ob Daten zum Upload vorhanden sind 
     if ($berechnungenPDFFiles -match 'Anlagedaten' -or 
         $berechnungenPDFFiles -match 'Lift data' -or 
         $berechnungenPDFFiles -match 'Données techniques de l´installation' ) {
+        
         #Daten im Vault löschen
         $toDeleteVaultFiles = @()
         $vaultPathBerechnungen = $targetPath + $pathExtBerechnungenPDF
