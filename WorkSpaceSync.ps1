@@ -41,4 +41,4 @@ $startArgs = @(
      $startArgslogFile  
 )
 
-start-process "cmd" -Argumentlist $startArgs -NoNewWindow -wait
+start-process "cmd" -Argumentlist $startArgs -WindowStyle Hidden
