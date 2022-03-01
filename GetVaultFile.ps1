@@ -68,7 +68,7 @@ function LogOut {
 if (($Auftragsnummer.Length -eq 6 -or $Auftragsnummer.Length -eq 7) -and $Auftragsnummer -match '^\d+$') {
     $Auftrag = $true
 }
-elseif ($Auftragsnummer -match '[0-9]{2}[-][0-9]{2}[-][0-9]{4}') {
+elseif ($Auftragsnummer -match '[0-9]{2}[-]0[1-9]|1[0-2][-][0-9]{4}') {
     $Angebot = $true
 }
 else {
