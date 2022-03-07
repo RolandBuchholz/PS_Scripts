@@ -1,7 +1,7 @@
 <# .SYNOPSIS
      Synchronisation aller Dateien im lokalen Workspace(C:\Work)
 .DESCRIPTION
-     Alle heruntergeladen Dateien im Arbeitsbereich werden aktualiesiert bzw. gelöscht 
+     Alle heruntergeladen Dateien im Arbeitsbereich werden aktualisiert bzw. gelöscht 
 .NOTES
      File Name : WorkSpaceSync.ps1
      Author : Buchholz Roland – roland.buchholz@berchtenbreiter-gmbh.de
@@ -12,7 +12,7 @@
 .INPUTTYPE
      none
 .RETURNVALUE
-     void (Es wird eine log Datei erstellt C:\Work\Administration\SyncBericht.csv)
+     void (Es werden Logdateien im Ordner C:\Work\Administration\WorkspaceSyncBericht\ erstellt )
 .COMPONENT
      Vault Server
 #>

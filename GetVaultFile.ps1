@@ -60,16 +60,17 @@ function LogOut {
     if ($null -ne $connection) {
         # $vault.Dispose()
         $logOff = [Autodesk.DataManagement.Client.Framework.Vault.Library]::ConnectionManager.LogOut($connection) #Vault Connection schließen
+        Write-Host "Vaultverbindungsstatus:" + $logOff
     }
     $Host.SetShouldExit([int]$errCode)
     exit
 }
 # Auftragsnummervalidierung
 if (($Auftragsnummer.Length -eq 6 -or $Auftragsnummer.Length -eq 7) -and $Auftragsnummer -match '^\d+$') {
-    $Auftrag = $true
+    $AuftragsTyp = "Auftrag"
 }
 elseif ($Auftragsnummer -match '[0-9]{2}[-]0[1-9]|1[0-2][-][0-9]{4}') {
-    $Angebot = $true
+    $AuftragsTyp = "Angebot"
 }
 else {
     $errCode = 6 #Invalide Auftrags bzw. Angebotsnummer
@@ -156,14 +157,14 @@ try {
             $null {
                 Write-Host "Datei wurde im Vault nicht gefunden. Überprüfen Sie Ihre Eingabe!"-ForegroundColor DarkRed
                 $downloadresult.Success = $false
-                $errCode = 7 # Datei download ist fehlgeschlagen
+                $errCode = 7 # Datei in Vault nicht gefunden
                 LogOut($downloadresult) 
             }
             "File not found" {
                 if ($downloadFiles[$i] -match "-AutoDeskTransfer.xml") {
                     Write-Host "Datei wurde im Vault nicht gefunden. Überprüfen Sie Ihre Eingabe!"-ForegroundColor DarkRed
                     $downloadresult.Success = $false
-                    $errCode = 7 # Datei download ist fehlgeschlagen
+                    $errCode = 7 # Datei in Vault nicht gefunden
                     LogOut($downloadresult) 
                 }
             }
@@ -176,7 +177,7 @@ try {
                     else {
                         Write-Host "Datei wurde im Vault nicht gefunden. Überprüfen Sie Ihre Eingabe!"-ForegroundColor DarkRed
                         $downloadresult.Success = $false
-                        $errCode = 7 # Datei download ist fehlgeschlagen
+                        $errCode = 7 # Datei in Vault nicht gefunden
                         LogOut($downloadresult)
                     }
                 }

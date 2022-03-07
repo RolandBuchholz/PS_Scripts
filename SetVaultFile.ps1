@@ -58,16 +58,17 @@ function LogOut {
     if ($null -ne $connection) {
         # $vault.Dispose()
         $logOff = [Autodesk.DataManagement.Client.Framework.Vault.Library]::ConnectionManager.LogOut($connection) #Vault Connection schließen
+        Write-Host "Vaultverbindungsstatus:" + $logOff
     }
     $Host.SetShouldExit([int]$errCode)
     exit
 }
 # Auftragsnummervalidierung
 if (($Auftragsnummer.Length -eq 6 -or $Auftragsnummer.Length -eq 7) -and $Auftragsnummer -match '^\d+$') {
-    $Auftrag = $true
+    $AuftragsTyp = "Auftrag"
 }
 elseif ($Auftragsnummer -match '[0-9]{2}[-]0[1-9]|1[0-2][-][0-9]{4}') {
-    $Angebot = $true
+    $AuftragsTyp = "Angebot"
 }
 else {
     $errCode = 6 #Invalide Auftrags bzw. Angebotsnummer
@@ -110,7 +111,18 @@ catch {
 try {
     #Quellpfad ermitteln
     $seachFile = $Auftragsnummer + "-AutoDeskTransfer.xml"
-    $sourceFile = Get-ChildItem -Path "C:\Work\AUFTRÄGE NEU\" -Recurse -Include $seachFile
+
+    if ($AuftragsTyp -eq "Auftrag") {
+        $seachPath = "C:\Work\AUFTRÄGE NEU\\Konstruktion"
+    }
+    elseif ($AuftragsTyp -eq "Angebot") {
+        $seachPath = "C:\Work\AUFTRÄGE NEU\Angebote"
+    }
+    else {
+        $seachPath = "C:\Work\AUFTRÄGE NEU\"
+    }
+    
+    $sourceFile = Get-ChildItem -Path $seachPath -Recurse -Include $seachFile
     if ($sourceFile.Count -gt 1) {
         Write-Host "AutoDeskTransferXml mehrfach im Arbeitsbereich vorhanden."-ForegroundColor DarkRed
         $errCode = "5"# AutoDeskTransferXml mehrfach im Arbeitsbereich vorhanden.
