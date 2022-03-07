@@ -1,5 +1,5 @@
 ﻿<# .SYNOPSIS
-     Auschecken Rückgänig von Dateien auf den VaultServer
+     Auschecken Rückgängig von Dateien auf den VaultServer
 .DESCRIPTION
      Reservierungen von Dateien werden enfernt und der alte Stand wird hergestellt  
 .NOTES
