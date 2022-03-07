@@ -163,7 +163,7 @@ try {
         LogOut($downloadresult)
     }
 
-    # Auschecken Rückgänig - Reservierung enfernen
+    # Auschecken Rückgängig - Reservierung enfernen
     try {
 
         $vault = $connection.WebServiceManager
