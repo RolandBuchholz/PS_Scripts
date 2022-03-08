@@ -6,7 +6,7 @@
      File Name : UndoVaultFile.ps1
      Author : Buchholz Roland – roland.buchholz@berchtenbreiter-gmbh.de
 .VERSION
-     Version 0.1 – First Setup
+     Version 0.2 – FileStatus integrated
 .EXAMPLE
      Beispiel wie das Script aufgerufen wird > UndoVaultFile.ps1 -Auftragsnummer „8951234“
 .INPUTTYPE
@@ -188,6 +188,10 @@ try {
             } 
         }
         
+
+        #FileStatus auslesen 
+        $FileStatus = New-Object 'system.collections.generic.dictionary[string,string]'
+        $FileStatus = $VltHelpers.GetVaultFileStatus($connection, $sourceFile.FullName) 
         $downloadresult.Success = $true
         $downloadresult.FileName = $FileStatus["FileName"]
         $downloadresult.FullFileName = $FileStatus["FullFileName"]
