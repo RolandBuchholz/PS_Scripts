@@ -18,7 +18,7 @@
      Vault Server
 #>
 
-       
+      
 Param(
     [Parameter(Mandatory = $true)]          
     [String]$Auftragsnummer
@@ -123,6 +123,12 @@ try {
     }
     
     $sourceFile = Get-ChildItem -Path $seachPath -Recurse -Include $seachFile
+    if ($null -eq $sourceFile) {
+        Write-Host "AutoDeskTransferXml im Arbeitsbereich nicht gefunden."-ForegroundColor DarkRed
+        $errCode = "7" # Datei im Arbeitsbereich nicht gefunden
+        $downloadresult.Success = $false
+        LogOut($downloadresult)
+    }
     if ($sourceFile.Count -gt 1) {
         Write-Host "AutoDeskTransferXml mehrfach im Arbeitsbereich vorhanden."-ForegroundColor DarkRed
         $errCode = "5"# AutoDeskTransferXml mehrfach im Arbeitsbereich vorhanden.
@@ -131,6 +137,20 @@ try {
     }
 
     $VltHelpers = New-Object VdsSampleUtilities.VltHelpers
+    $vault = $connection.WebServiceManager
+
+    #FileStatus auslesen 
+    $FileStatus = New-Object 'system.collections.generic.dictionary[string,string]'
+    $FileStatus = $VltHelpers.GetVaultFileStatus($connection, $sourceFile) 
+    
+    $downloadresult.FileName = $FileStatus["FileName"]
+    $downloadresult.FullFileName = $FileStatus["FullFileName"]
+    $downloadresult.CheckOutState = $FileStatus["CheckOutState"]
+    $downloadresult.IsCheckOut = [System.Convert]::ToBoolean($FileStatus["CheckOut"])
+    $downloadresult.CheckOutPC = $FileStatus["CheckOutPC"]
+    $downloadresult.EditedBy = $FileStatus["EditedBy"]
+    $downloadresult.ErrorState = $FileStatus["ErrorState"]
+
     $sourcePath = $sourceFile.DirectoryName.Replace("\", "/") + "/"
     $targetPath = $VltHelpers.ConvertLocalPathToVaultPath($connection, $sourceFile)
     #Dateinamen der einzucheckenden
@@ -177,31 +197,50 @@ try {
         
         #Daten im Vault löschen
         $toDeleteVaultFiles = @()
-        $vaultPathBerechnungen = $targetPath + $pathExtBerechnungenPDF
-        $vaultPathTUEVZertifikate = $targetPath + $pathExtTUEVZertifikate
+
+        $vaultPathBerechnungen = ($targetPath + "/" + $pathExtBerechnungenPDF).TrimEnd("/")
+        $vaultPathTUEVZertifikate = ($targetPath + "/" + $pathExtTUEVZertifikate).TrimEnd("/")
+
+        $vaultFolderBerechnungen = $vault.DocumentService.GetFolderByPath($vaultPathBerechnungen)
+        $vaultFolderTUEVZertifikate = $vault.DocumentService.GetFolderByPath($vaultPathTUEVZertifikate)
+
+        $propDefs = $vault.PropertyService.GetPropertyDefinitionsByEntityClassId("FILE")
+        $custPropDefIds = $propDefs | Where-Object { $_.IsSys -eq $false } | Select-Object -ExpandProperty Id
 
         if ($berechnungenPDFFiles.Count -ge 1) {
-            $files = Get-VaultFiles -Folder $vaultPathBerechnungen
+            $files = $vault.DocumentService.GetLatestFilesByFolderId($vaultFolderBerechnungen.Id, $true)
             foreach ($file in $files) {
-                if (($file._Author -eq "CFP") -and ($file._CategoryName -eq "Office") -and ($file._Extension -eq "pdf") -and ($file.Kategorie -eq "Berechnungen")) {
-                    $toDeleteVaultFiles += $file
+                if ($file.Cat.CatName -eq "Office" -and $file.Name.EndsWith(".pdf")) {
+
+                    $props = $vault.PropertyService.GetPropertiesByEntityIds("FILE", @($file.Id))
+                    $custProps = $props | Where-Object { $custPropDefIds -contains $_.PropDefId }
+
+                    if ((($custProps | Where-Object { $_.PropDefId -eq 26 }).Val -eq "Berechnungen") -and (($custProps | Where-Object { $_.PropDefId -eq 104 }).Val -eq "CFP")) {
+                        $toDeleteVaultFiles += $file
+                    }  
                 }
             } 
         }
 
         if ($zertifikateFiles.Count -ge 1) {
-            $files = Get-VaultFiles -Folder $vaultPathTUEVZertifikate
+            $files = $vault.DocumentService.GetLatestFilesByFolderId($vaultFolderTUEVZertifikate.Id, $true)
             foreach ($file in $files) {
-                if (($file._Author -eq "CFP") -and ($file._CategoryName -eq "Office") -and ($file._Extension -eq "pdf") -and ($file.Kategorie -eq "Baumuster-Zertifikate")) {
-                    $toDeleteVaultFiles += $file
+                if ($file.Cat.CatName -eq "Office" -and $file.Name.EndsWith(".pdf")) {
+
+                    $props = $vault.PropertyService.GetPropertiesByEntityIds("FILE", @($file.Id))
+                    $custProps = $props | Where-Object { $custPropDefIds -contains $_.PropDefId }
+
+                    if (($custProps | Where-Object { $_.PropDefId -eq 104 }).Val -eq "CFP") {
+                        $toDeleteVaultFiles += $file
+                    }  
                 }
             } 
         }
 
         foreach ($toDeleteVaultFile in $toDeleteVaultFiles) {
             try {
-                $toDeleteFolder = $vault.DocumentService.GetFolderByPath($toDeleteVaultFile._EntityPath)
-                $vault.DocumentService.DeleteFileFromFolderUnconditional( $toDeleteVaultFile.MasterId , $toDeleteFolder.Id)
+                $toDeleteFolder = $vault.DocumentService.GetFoldersByFileMasterId($toDeleteVaultFile.MasterId)
+                $vault.DocumentService.DeleteFileFromFolderUnconditional( $toDeleteVaultFile.MasterId , $toDeleteFolder[0].Id)
                 Write-Host  $toDeleteVaultFile.Name  "gelöscht..."-ForegroundColor Yellow
             }
             catch { 
@@ -210,75 +249,214 @@ try {
         }
     }
 
-    $verfasser = $Env:USERNAME
-
     #Dateien hochladen und aktualisieren
     for ($i = 0; $i -le $uploadFiles.Count - 1; $i++) {
+        $verfasser = $Env:USERNAME
         $uploadSource = -join ($sourcePath, $uploadFiles[$i])
-        $uploadTarget = -join ($targetPath, $uploadFiles[$i])
-        $uploadFile = Add-VaultFile -From $uploadSource -To $uploadTarget
-        $Beschreibung = (($uploadFile._Name.TrimStart($Auftragsnummer + "-")).TrimEnd("." + $uploadFile._Extension))
-        switch ($uploadFile._Extension) {
-            "xml" { $updateFile = Update-VaultFile -File $uploadFile.'Full Path' -Properties @{'Beschreibung' = $Beschreibung; 'Projekt' = $Auftragsnummer; 'Verfasser' = $verfasser; 'Kategorie' = "Berechnungen" } -Category "AnlageDaten" }
-            "pdf" {
-                If ($updateFile.Path -match "Berechnungen") {
-                    $updateFile = Update-VaultFile -File $uploadFile.'Full Path' -Properties @{'Beschreibung' = $Beschreibung; 'Projekt' = $Auftragsnummer; 'Verfasser' = "CFP"; 'Kategorie' = "Berechnungen" } -Category "Office" 
-                }
-                ElseIf ($updateFile.Path -match "Zertifikate") {
-                    $updateFile = Update-VaultFile -File $uploadFile.'Full Path' -Properties @{'Beschreibung' = $Beschreibung; 'Projekt' = $Auftragsnummer; 'Verfasser' = "CFP"; 'Kategorie' = "Baumuster-Zertifikate" } -Category "Office"
-                }
-                Else {
-                    $updateFile = Update-VaultFile -File $uploadFile.'Full Path' -Properties @{'Beschreibung' = $Beschreibung; 'Projekt' = $Auftragsnummer; 'Verfasser' = $verfasser; 'Kategorie' = "Berechnungen"; 'Kommentare' = "Von Spezifikation automatisch generierte Datei" }-Category "Office"
-                }
-          
-            }
-            "html" {
+        $uploadTarget = -join ($targetPath, "/", $uploadFiles[$i])
+        $uploadTargetPath = ( -join (Split-Path -Path $uploadTarget, "\")).Replace("\", "/")
 
-                $html = New-Object -ComObject "HTMLFile"
-                $html.IHTMLDocument2_write($(Get-Content ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + ".html") -raw))
-                $motortyp = ($HTML.body.getElementsByTagName('tr') | Where-Object { $_.innerText -like "Motortyp*" }).innerText
-                $aufhaengung = ($HTML.body.getElementsByTagName('tr') | Where-Object { $_.innerText -like "Aufhängung*" }).innerText.Replace("Aufhängung is ", "")
-                $lageTreibscheibe = ($HTML.body.getElementsByTagName('tr') | Where-Object { $_.innerText -like "Treibscheibe *" }).innerText[0]
-                $treibscheibe = ($HTML.body.getElementsByTagName('tr') | Where-Object { $_.innerText -like "Treibscheibe *" }).innerText[2]
-          
-                $updateFile = Update-VaultFile -File $uploadFile.'Full Path' -Properties @{'Beschreibung' = "Antriebsauslegung Ziehl Abegg"; 'Projekt' = $Auftragsnummer; 'Kategorie' = "Berechnungen"; 'Antriebtyp' = $motortyp; 'Aufhängung' = $aufhaengung; 'Lage Antrieb' = $lageTreibscheibe; 'Treibscheibe Zylinder' = $treibscheibe } -Category "AntriebsDaten"
-            }
-            "aus" { $updateFile = Update-VaultFile -File $uploadFile.'Full Path' -Properties @{'Beschreibung' = "Antriebsauslegung Ziehl Abegg"; 'Projekt' = $Auftragsnummer; 'Kategorie' = "Berechnungen" } -Category "AntriebsDaten" }
-            "dat" { $updateFile = Update-VaultFile -File $uploadFile.'Full Path' -Properties @{'Beschreibung' = "Daten Bausatzprogram CFP"; 'Projekt' = $Auftragsnummer; 'Verfasser' = $verfasser; 'Kategorie' = "Berechnungen" } -Category "AnlageDaten" }
-            "LILO" {
-                if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + ".dat")) {
-                    $hydroDat = Get-Content -path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + ".dat")
+        $uploadFileResult = $VltHelpers.AddFile($connection, $uploadSource, $uploadTargetPath, $true)
 
-                    $motortyp = ($hydroDat -match "Power_Unit_Type").Replace("[Power_Unit_Type] ", "") + ($hydroDat -match "Valve_Model").Replace("[Valve_Model] ", " - ") + ($hydroDat -match "Pumpenbezeichnung").Replace("[Pumpenbezeichnung] ", "- ")
-                    $aufhaengung = ($hydroDat -match "Bauart")[0].Replace("[Bauart] ", "")
-                    $lageTreibscheibe = If (($hydroDat -match "Antrieb_im_Schacht").Replace("[Antrieb_im_Schacht] ", "") -eq "0") { "Antrieb im Maschinenraum" }else { "Antrieb im Schacht" }
-                    $treibscheibe = ($hydroDat -match "Zylinderbezeichnung").Replace("[Zylinderbezeichnung] ", "")
-                }
-                Else {
-                    $motortyp = "Keine CFP-Auslegung vorhanden"
-                    $aufhaengung = "Keine CFP-Auslegung vorhanden"
-                    $lageTreibscheibe = "Keine CFP-Auslegung vorhanden"
-                    $treibscheibe = "Keine CFP-Auslegung vorhanden"
-                }
-                $updateFile = Update-VaultFile -File $uploadFile.'Full Path' -Properties @{'Beschreibung' = "Antriebsauslegung Ziehl Abegg"; 'Projekt' = $Auftragsnummer; 'Kategorie' = "Berechnungen"; 'Antriebtyp' = $motortyp; 'Aufhängung' = $aufhaengung; 'Lage Antrieb' = $lageTreibscheibe; 'Treibscheibe Zylinder' = $treibscheibe } -Category "AntriebsDaten"
-            }
-            "txt" { $updateFile = Update-VaultFile -File $uploadFile.'Full Path' -Properties @{'Beschreibung' = "Fertigungsunterlagen CFP"; 'Projekt' = $Auftragsnummer; 'Kategorie' = "Berechnungen" } -Category "FertigungsDaten" }
-            "dwg" { $updateFile = Update-VaultFile -File $uploadFile.'Full Path' -Properties @{'Beschreibung' = "Bausatz Zeichnungen"; 'Projekt' = $Auftragsnummer; 'Kategorie' = "Montagebaugruppe"; 'Kommentare' = "von CFP automatisch generierte Zeichnung" } -Category "Zeichnungsableitungen" }
-            default { $updateFile = Update-VaultFile -File $uploadFile.'Full Path' -Properties @{'Beschreibung' = $Beschreibung; 'Projekt' = $Auftragsnummer } -Category "Basis" }
+        $uploadFile = ($vault.DocumentService.FindLatestFilesByPaths($uploadTarget))[0]
+
+        If ($null -eq $newProps) {        
+            $newProps = New-Object 'system.collections.generic.dictionary[string,string]'
+        }
+        else {
+            $newProps.Clear()
         }
 
-        Write-Host "Datei"$uploadFile._Name"wurde hochgeladen und eingechecked!"-ForegroundColor Yellow
-    }
+        if ($uploadFileResult) {
 
+            $Beschreibung = $uploadFile.Name.TrimStart($Auftragsnummer + "-")
+
+            switch ([System.IO.Path]::GetExtension($uploadTarget)) {
+                ".xml" {
+                    $Kategorie = "Berechnungen"
+                    $newProps.Add('Beschreibung', $Beschreibung)
+                    $newProps.Add('Projekt', $Auftragsnummer)
+                    $newProps.Add('Verfasser', $verfasser)
+                    $newProps.Add('Kategorie', $Kategorie)
+
+                    $VltHelpers.mUpdateFileProperties2($connection, $uploadFile, $newProps)
+
+                    $updateFile = $VltHelpers.mUpdateFileProperties($connection, $uploadFile, $newProbs )
+                    if ($uploadFile.Cat.CatName -ne "AnlageDaten") {
+                        $vault.DocumentServiceExtensions.UpdateFileCategories($uploadFile.MasterId, 31, $uploadFile.Comm)
+                    }
+                }
+                ".pdf" {
+                    If ($updateFile.Path -match "Berechnungen") {
+                        $Kategorie = "Berechnungen"
+                        $verfasser = "CFP"
+                    }
+                    ElseIf ($updateFile.Path -match "Zertifikate") {
+                        $Kategorie = "Baumuster-Zertifikate"
+                        $verfasser = "CFP"
+                    }
+                    Else {
+                        $Kategorie = "Berechnungen"
+                        $newProps.Add('Kommentare', "Von Spezifikation automatisch generierte Datei")
+                    }
+                    
+                    $newProps.Add('Beschreibung', $Beschreibung)
+                    $newProps.Add('Projekt', $Auftragsnummer)
+                    $newProps.Add('Verfasser', $verfasser)
+                    $newProps.Add('Kategorie', $Kategorie)
+
+                    $VltHelpers.mUpdateFileProperties2($connection, $uploadFile, $newProps)
+
+                    $updateFile = $VltHelpers.mUpdateFileProperties($connection, $uploadFile, $newProbs )
+                    if ($uploadFile.Cat.CatName -ne "Office") {
+                        $vault.DocumentServiceExtensions.UpdateFileCategories($uploadFile.MasterId, 3, $uploadFile.Comm)
+                    }
+                }
+                ".html" {
+                    $html = New-Object -ComObject "HTMLFile"
+                    $html.IHTMLDocument2_write($(Get-Content ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + ".html") -raw))
+                    $motortyp = ($HTML.body.getElementsByTagName('tr') | Where-Object { $_.innerText -like "Motortyp*" }).innerText
+                    $aufhaengung = ($HTML.body.getElementsByTagName('tr') | Where-Object { $_.innerText -like "Aufhängung*" }).innerText.Replace("Aufhängung is ", "")
+                    $lageTreibscheibe = ($HTML.body.getElementsByTagName('tr') | Where-Object { $_.innerText -like "Treibscheibe *" }).innerText[0]
+                    $treibscheibe = ($HTML.body.getElementsByTagName('tr') | Where-Object { $_.innerText -like "Treibscheibe *" }).innerText[2]
+                    $Beschreibung = "Antriebsauslegung Ziehl Abegg";
+                    $Kategorie = "Berechnungen"    
+                    $newProps.Add('Beschreibung', $Beschreibung)
+                    $newProps.Add('Projekt', $Auftragsnummer)
+                    $newProps.Add('Verfasser', $verfasser)
+                    $newProps.Add('Kategorie', $Kategorie)
+                    $newProps.Add('Antriebtyp', $motortyp)
+                    $newProps.Add('Aufhängung', $aufhaengung)
+                    $newProps.Add('Lage Antrieb', $lageTreibscheibe)
+                    $newProps.Add('Treibscheibe Zylinder', $treibscheibe )
+
+                    $VltHelpers.mUpdateFileProperties2($connection, $uploadFile, $newProps)
+
+                    $updateFile = $VltHelpers.mUpdateFileProperties($connection, $uploadFile, $newProbs )
+                    if ($uploadFile.Cat.CatName -ne "AntriebsDaten") {
+                        $vault.DocumentServiceExtensions.UpdateFileCategories($uploadFile.MasterId, 35, $uploadFile.Comm)
+                    }
+                }
+                ".aus" {
+                    $Beschreibung = "Antriebsauslegung Ziehl Abegg"
+                    $Kategorie = "Berechnungen"    
+                    $newProps.Add('Beschreibung', $Beschreibung)
+                    $newProps.Add('Projekt', $Auftragsnummer)
+                    $newProps.Add('Verfasser', $verfasser)
+                    $newProps.Add('Kategorie', $Kategorie)
+   
+                    $VltHelpers.mUpdateFileProperties2($connection, $uploadFile, $newProps)
+
+                    $updateFile = $VltHelpers.mUpdateFileProperties($connection, $uploadFile, $newProbs )
+                    if ($uploadFile.Cat.CatName -ne "AntriebsDaten") {
+                        $vault.DocumentServiceExtensions.UpdateFileCategories($uploadFile.MasterId, 35, $uploadFile.Comm)
+                    }
+                }
+                ".dat" { 
+                    $Beschreibung = "Daten Bausatzprogram CFP"
+                    $Kategorie = "Berechnungen"
+                    $newProps.Add('Beschreibung', $Beschreibung)
+                    $newProps.Add('Projekt', $Auftragsnummer)
+                    $newProps.Add('Verfasser', $verfasser)
+                    $newProps.Add('Kategorie', $Kategorie)
+
+                    $VltHelpers.mUpdateFileProperties2($connection, $uploadFile, $newProps)
+
+                    $updateFile = $VltHelpers.mUpdateFileProperties($connection, $uploadFile, $newProbs )
+                    if ($uploadFile.Cat.CatName -ne "AnlageDaten") {
+                        $vault.DocumentServiceExtensions.UpdateFileCategories($uploadFile.MasterId, 31, $uploadFile.Comm)
+                    }
+                }
+                ".LILO" {
+                    if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + ".dat")) {
+                        $hydroDat = Get-Content -path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + ".dat")
+
+                        $motortyp = ($hydroDat -match "Power_Unit_Type").Replace("[Power_Unit_Type] ", "") + ($hydroDat -match "Valve_Model").Replace("[Valve_Model] ", " - ") + ($hydroDat -match "Pumpenbezeichnung").Replace("[Pumpenbezeichnung] ", "- ")
+                        $aufhaengung = ($hydroDat -match "Bauart")[0].Replace("[Bauart] ", "")
+                        $lageTreibscheibe = If (($hydroDat -match "Antrieb_im_Schacht").Replace("[Antrieb_im_Schacht] ", "") -eq "0") { "Antrieb im Maschinenraum" }else { "Antrieb im Schacht" }
+                        $treibscheibe = ($hydroDat -match "Zylinderbezeichnung").Replace("[Zylinderbezeichnung] ", "")
+                    }
+                    Else {
+                        $motortyp = "Keine CFP-Auslegung vorhanden"
+                        $aufhaengung = "Keine CFP-Auslegung vorhanden"
+                        $lageTreibscheibe = "Keine CFP-Auslegung vorhanden"
+                        $treibscheibe = "Keine CFP-Auslegung vorhanden"
+                    }
+
+                    $Beschreibung = "Antriebsauslegung Lilo"
+                    $Kategorie = "Berechnungen"    
+                    $newProps.Add('Beschreibung', $Beschreibung)
+                    $newProps.Add('Projekt', $Auftragsnummer)
+                    $newProps.Add('Verfasser', $verfasser)
+                    $newProps.Add('Kategorie', $Kategorie)
+                    $newProps.Add('Antriebtyp', $motortyp)
+                    $newProps.Add('Aufhängung', $aufhaengung)
+                    $newProps.Add('Lage Antrieb', $lageTreibscheibe)
+                    $newProps.Add('Treibscheibe Zylinder', $treibscheibe )
+
+                    $VltHelpers.mUpdateFileProperties2($connection, $uploadFile, $newProps)
+
+                    $updateFile = $VltHelpers.mUpdateFileProperties($connection, $uploadFile, $newProbs )
+                    if ($uploadFile.Cat.CatName -ne "AntriebsDaten") {
+                        $vault.DocumentServiceExtensions.UpdateFileCategories($uploadFile.MasterId, 35, $uploadFile.Comm)
+                    }
+                
+                }
+                ".txt" {
+                    $Beschreibung = "Fertigungsunterlagen CFP"
+                    $Kategorie = "Berechnungen"
+                    $newProps.Add('Beschreibung', $Beschreibung)
+                    $newProps.Add('Projekt', $Auftragsnummer)
+                    $newProps.Add('Verfasser', $verfasser)
+                    $newProps.Add('Kategorie', $Kategorie)
+
+                    $VltHelpers.mUpdateFileProperties2($connection, $uploadFile, $newProps)
+
+                    $updateFile = $VltHelpers.mUpdateFileProperties($connection, $uploadFile, $newProbs )
+                    if ($uploadFile.Cat.CatName -ne "FertigungsDaten") {
+                        $vault.DocumentServiceExtensions.UpdateFileCategories($uploadFile.MasterId, 32, $uploadFile.Comm)
+                    }
+                }
+                ".dwg" {
+                    $Beschreibung = "Bausatz Zeichnungen"
+                    $Kategorie = "Montagebaugruppe"
+                    $newProps.Add('Beschreibung', $Beschreibung)
+                    $newProps.Add('Projekt', $Auftragsnummer)
+                    $newProps.Add('Verfasser', $verfasser)
+                    $newProps.Add('Kategorie', $Kategorie)
+                    $newProps.Add('Kommentare', "von CFP automatisch generierte Zeichnung")
+
+                    $VltHelpers.mUpdateFileProperties2($connection, $uploadFile, $newProps)
+
+                    $updateFile = $VltHelpers.mUpdateFileProperties($connection, $uploadFile, $newProbs )
+                    if ($uploadFile.Cat.CatName -ne "Zeichnungsableitungen") {
+                        $vault.DocumentServiceExtensions.UpdateFileCategories($uploadFile.MasterId, 24, $uploadFile.Comm)
+                    }
+                }
+                default {
+                    $newProps.Add('Beschreibung', $Beschreibung)
+                    $newProps.Add('Projekt', $Auftragsnummer)
+          
+                    $VltHelpers.mUpdateFileProperties2($connection, $uploadFile, $newProps)
+
+                    $updateFile = $VltHelpers.mUpdateFileProperties($connection, $uploadFile, $newProbs )
+                    if ($uploadFile.Cat.CatName -ne "Basis") {
+                        $vault.DocumentServiceExtensions.UpdateFileCategories($uploadFile.MasterId, 1, $uploadFile.Comm)
+                    }
+                }
+            }
+
+            Write-Host "Datei"$uploadFiles[$i]"wurde hochgeladen und eingechecked!"-ForegroundColor Yellow
+        }
+        else {
+            Write-Host "Datei"$uploadFiles[$i]"konnte nicht hochgeladen werden!"-ForegroundColor DarkRed
+        }
+    }
 }
 catch {
-    $vault.Dispose() #Vault Connection schließen
-
-    $errCode = "1" # Datei upload ist fehlgeschlagen
-
-    $Host.SetShouldExit($errCode -as [int])
-    exit
-
+    $errCode = 1 # Datei upload ist fehlgeschlagen
+    $downloadresult.Success = $false
+    LogOut($downloadresult)
 }
 
 try {
@@ -375,6 +553,8 @@ try {
         $i++
     }
 
+    $vault.DocumentServiceExtensions.UpdateFolderProperties(@($folder.Id), @($propValues))
+
         
     #Housekeeping
 
@@ -408,32 +588,28 @@ try {
             $pathDeleteFile = $sourcePath + $deleteFile
             Remove-Item $pathDeleteFile -Force
         }
-        catch
-        {}
+        catch {
+            # TODO Ausgabe Fehlermeldung
+        }
     }
 
+    #FileStatus auslesen 
+    $FileStatus = $VltHelpers.GetVaultFileStatus($connection, $sourceFile) 
+    
+    $downloadresult.Success = $true
+    $downloadresult.FileName = $FileStatus["FileName"]
+    $downloadresult.FullFileName = $FileStatus["FullFileName"]
+    $downloadresult.CheckOutState = $FileStatus["CheckOutState"]
+    $downloadresult.IsCheckOut = [System.Convert]::ToBoolean($FileStatus["CheckOut"])
+    $downloadresult.CheckOutPC = $FileStatus["CheckOutPC"]
+    $downloadresult.EditedBy = $FileStatus["EditedBy"]
+    $downloadresult.ErrorState = $FileStatus["ErrorState"]
 
-
-
-
-
-
-    #Read-Host Debug:
-
-    $vault.DocumentServiceExtensions.UpdateFolderProperties(@($folder.Id), @($propValues))
-
-    $vault.Dispose() #Vault Connection schließen
-
-    $errCode = "0"
-
-    $Host.SetShouldExit($errCode -as [int])
-    exit
+    $errCode = 0
+    LogOut($downloadresult)
 }
 catch {
-    $vault.Dispose() #Vault Connection schließen
-
-    $errCode = "3"# Eigenschaftenabgleich Vault ist fehlgeschlagen
-
-    $Host.SetShouldExit($errCode -as [int])
-    exit
+    $errCode = 3 # Eigenschaftenabgleich Vault ist fehlgeschlagen
+    $downloadresult.Success = $false
+    LogOut($downloadresult)
 }
