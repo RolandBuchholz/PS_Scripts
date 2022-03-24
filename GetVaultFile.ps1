@@ -23,7 +23,7 @@
 Param(
     [Parameter(Mandatory = $true)]          
     [String]$Auftragsnummer,
-    [bool]$ReadOnly = $false    
+    [bool]$ReadOnly = $false
 )
 
 class DownloadInfo {
@@ -60,7 +60,7 @@ function LogOut {
     if ($null -ne $connection) {
         # $vault.Dispose()
         $logOff = [Autodesk.DataManagement.Client.Framework.Vault.Library]::ConnectionManager.LogOut($connection) #Vault Connection schließen
-        Write-Host "Vaultverbindungsstatus:" + $logOff
+        Write-Host "LogOut successful:" $logOff
     }
     $Host.SetShouldExit([int]$errCode)
     exit
@@ -143,7 +143,58 @@ try {
     $downloadFiles += $Auftragsnummer + ".dat"
     $downloadFiles += $Auftragsnummer + ".LILO"
 
-    #Dateien im Vault suchen (auschecken) und den Arbeitsbereich ermitteln1
+    #Quellpfad ermitteln
+
+    if ($ReadOnly) {
+        $seachFile = $Auftragsnummer + "-AutoDeskTransfer.xml"
+
+        if ($AuftragsTyp -eq "Auftrag") {
+            $seachPath = "C:\Work\AUFTRÄGE NEU\\Konstruktion"
+        }
+        elseif ($AuftragsTyp -eq "Angebot") {
+            $seachPath = "C:\Work\AUFTRÄGE NEU\Angebote"
+        }
+        else {
+            $seachPath = "C:\Work\AUFTRÄGE NEU\"
+        }
+
+        $seachFile = $Auftragsnummer + "-AutoDeskTransfer.xml"
+    
+        $foundFiles = Get-ChildItem -Path $seachPath -Recurse -Include $seachFile
+
+        if ($foundFiles.Count -eq 1) {
+            
+            If ($foundFiles[0].IsReadOnly -eq $false) {
+                #FileStatus auslesen 
+                $FileStatus = New-Object 'system.collections.generic.dictionary[string,string]'
+                $FileStatus = $VltHelpers.GetVaultFileStatus($connection, $foundFiles[0].FullName) 
+                $downloadresult.Success = $true
+                $downloadresult.FileName = $FileStatus["FileName"]
+                $downloadresult.FullFileName = $FileStatus["FullFileName"]
+                $downloadresult.CheckOutState = $FileStatus["CheckOutState"]
+                $downloadresult.IsCheckOut = [System.Convert]::ToBoolean($FileStatus["CheckOut"])
+                $downloadresult.CheckOutPC = $FileStatus["CheckOutPC"]
+                $downloadresult.EditedBy = $FileStatus["EditedBy"]
+                $downloadresult.ErrorState = $FileStatus["ErrorState"]
+                $errCode = 0
+                LogOut($downloadresult)
+            }
+        }
+        elseif ($foundFiles.Count -gt 1) {
+            foreach ($item in $foundFiles) {
+
+                If (!$item.IsReadOnly) {
+                    Write-Host "AutoDeskTransferXml mehrfach im Arbeitsbereich vorhanden."-ForegroundColor DarkRed
+                    $errCode = "5"# AutoDeskTransferXml mehrfach im Arbeitsbereich vorhanden
+                    $downloadresult.Success = $false
+                    $downloadresult.IsCheckOut = $null
+                    LogOut($downloadresult)
+                }
+            }
+        }
+    }
+
+    #Dateien im Vault suchen (auschecken) und den Arbeitsbereich ermitteln
     $SearchCriteria = New-Object 'system.collections.generic.dictionary[string,string]'
     $SearchCriteria.Add("Name", "")
 
