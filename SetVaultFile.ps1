@@ -58,7 +58,7 @@ function LogOut {
     if ($null -ne $connection) {
         # $vault.Dispose()
         $logOff = [Autodesk.DataManagement.Client.Framework.Vault.Library]::ConnectionManager.LogOut($connection) #Vault Connection schließen
-        Write-Host "Vaultverbindungsstatus:" + $logOff
+        Write-Host "Vaultverbindungsstatus:" $logOff
     }
     $Host.SetShouldExit([int]$errCode)
     exit
@@ -315,10 +315,16 @@ try {
                 ".html" {
                     $html = New-Object -ComObject "HTMLFile"
                     $html.IHTMLDocument2_write($(Get-Content ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + ".html") -raw))
-                    $motortyp = ($HTML.body.getElementsByTagName('tr') | Where-Object { $_.innerText -like "Motortyp*" }).innerText
-                    $aufhaengung = ($HTML.body.getElementsByTagName('tr') | Where-Object { $_.innerText -like "Aufhängung*" }).innerText.Replace("Aufhängung is ", "")
-                    $lageTreibscheibe = ($HTML.body.getElementsByTagName('tr') | Where-Object { $_.innerText -like "Treibscheibe *" }).innerText[0]
-                    $treibscheibe = ($HTML.body.getElementsByTagName('tr') | Where-Object { $_.innerText -like "Treibscheibe *" }).innerText[2]
+                    $motortyp = ($HTML.body.getElementsByTagName('tr') | Where-Object { $_.innerText -like "Motortyp*" -or $_.innerText -like "Motor type*" }).innerText
+                    $infoAufhaengung = ($HTML.body.getElementsByTagName('tr') | Where-Object { $_.innerText -like "Aufhängung*" -or $_.innerText -like "Suspension/roping*" }).innerText
+                    if ($null -ne $aufhaengung) {
+                        $aufhaengung = $infoAufhaengung.Replace("Aufhängung is ", "").Replace("Suspension/roping is ", "") 
+                    }
+                    $infoTreibscheibe = ($HTML.body.getElementsByTagName('tr') | Where-Object { $_.innerText -like "Treibscheibe *" -or $_.innerText -like "Traction sheave*" })
+                    if ($null -ne $infoTreibscheibe) {
+                        $lageTreibscheibe = $infoTreibscheibe.innerText[0] 
+                        $Treibscheibe = $infoTreibscheibe.innerText[2] 
+                    }
                     $Beschreibung = "Antriebsauslegung Ziehl Abegg";
                     $Kategorie = "Berechnungen"    
                     $newProps.Add('Beschreibung', $Beschreibung)
