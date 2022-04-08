@@ -281,17 +281,16 @@ try {
 
                     $VltHelpers.mUpdateFileProperties2($connection, $uploadFile, $newProps)
 
-                    $updateFile = $VltHelpers.mUpdateFileProperties($connection, $uploadFile, $newProbs )
                     if ($uploadFile.Cat.CatName -ne "AnlageDaten") {
                         $vault.DocumentServiceExtensions.UpdateFileCategories($uploadFile.MasterId, 31, $uploadFile.Comm)
                     }
                 }
                 ".pdf" {
-                    If ($updateFile.Path -match "Berechnungen") {
+                    If ($uploadTargetPath -match "Berechnungen") {
                         $Kategorie = "Berechnungen"
                         $verfasser = "CFP"
                     }
-                    ElseIf ($updateFile.Path -match "Zertifikate") {
+                    ElseIf ($uploadTargetPath -match "Zertifikate") {
                         $Kategorie = "Baumuster-Zertifikate"
                         $verfasser = "CFP"
                     }
@@ -307,24 +306,32 @@ try {
 
                     $VltHelpers.mUpdateFileProperties2($connection, $uploadFile, $newProps)
 
-                    $updateFile = $VltHelpers.mUpdateFileProperties($connection, $uploadFile, $newProbs )
                     if ($uploadFile.Cat.CatName -ne "Office") {
                         $vault.DocumentServiceExtensions.UpdateFileCategories($uploadFile.MasterId, 3, $uploadFile.Comm)
                     }
                 }
                 ".html" {
                     $html = New-Object -ComObject "HTMLFile"
-                    $html.IHTMLDocument2_write($(Get-Content ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + ".html") -raw))
-                    $motortyp = ($HTML.body.getElementsByTagName('tr') | Where-Object { $_.innerText -like "Motortyp*" -or $_.innerText -like "Motor type*" }).innerText
-                    $infoAufhaengung = ($HTML.body.getElementsByTagName('tr') | Where-Object { $_.innerText -like "Aufhängung*" -or $_.innerText -like "Suspension/roping*" }).innerText
-                    if ($null -ne $aufhaengung) {
-                        $aufhaengung = $infoAufhaengung.Replace("Aufhängung is ", "").Replace("Suspension/roping is ", "") 
+                    try {
+                        $html.IHTMLDocument2_write($(Get-Content ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + ".html") -raw))
+                        $motortyp = ($HTML.body.getElementsByTagName('tr') | Where-Object { $_.innerText -like "Motortyp*" -or $_.innerText -like "Motor type*" }).innerText
+                        $infoAufhaengung = ($HTML.body.getElementsByTagName('tr') | Where-Object { $_.innerText -like "Aufhängung*" -or $_.innerText -like "Suspension/roping*" }).innerText
+                        if ($null -ne $infoAufhaengung) {
+                            $aufhaengung = $infoAufhaengung.Replace("Aufhängung is ", "").Replace("Suspension/roping is ", "") 
+                        }
+                        $infoTreibscheibe = ($HTML.body.getElementsByTagName('tr') | Where-Object { $_.innerText -like "Treibscheibe *" -or $_.innerText -like "Traction sheave*" })
+                        if ($null -ne $infoTreibscheibe) {
+                            $lageTreibscheibe = $infoTreibscheibe.innerText[0] 
+                            $Treibscheibe = $infoTreibscheibe.innerText[2] 
+                        }
                     }
-                    $infoTreibscheibe = ($HTML.body.getElementsByTagName('tr') | Where-Object { $_.innerText -like "Treibscheibe *" -or $_.innerText -like "Traction sheave*" })
-                    if ($null -ne $infoTreibscheibe) {
-                        $lageTreibscheibe = $infoTreibscheibe.innerText[0] 
-                        $Treibscheibe = $infoTreibscheibe.innerText[2] 
+                    catch {
+                        $motortyp = "Keine Angaben"
+                        $aufhaengung = "Keine Angaben"
+                        $lageTreibscheibe = "Keine Angaben"
+                        $treibscheibe = "Keine Angaben"
                     }
+            
                     $Beschreibung = "Antriebsauslegung Ziehl Abegg";
                     $Kategorie = "Berechnungen"    
                     $newProps.Add('Beschreibung', $Beschreibung)
@@ -338,7 +345,6 @@ try {
 
                     $VltHelpers.mUpdateFileProperties2($connection, $uploadFile, $newProps)
 
-                    $updateFile = $VltHelpers.mUpdateFileProperties($connection, $uploadFile, $newProbs )
                     if ($uploadFile.Cat.CatName -ne "AntriebsDaten") {
                         $vault.DocumentServiceExtensions.UpdateFileCategories($uploadFile.MasterId, 35, $uploadFile.Comm)
                     }
@@ -353,7 +359,6 @@ try {
    
                     $VltHelpers.mUpdateFileProperties2($connection, $uploadFile, $newProps)
 
-                    $updateFile = $VltHelpers.mUpdateFileProperties($connection, $uploadFile, $newProbs )
                     if ($uploadFile.Cat.CatName -ne "AntriebsDaten") {
                         $vault.DocumentServiceExtensions.UpdateFileCategories($uploadFile.MasterId, 35, $uploadFile.Comm)
                     }
@@ -368,19 +373,28 @@ try {
 
                     $VltHelpers.mUpdateFileProperties2($connection, $uploadFile, $newProps)
 
-                    $updateFile = $VltHelpers.mUpdateFileProperties($connection, $uploadFile, $newProbs )
                     if ($uploadFile.Cat.CatName -ne "AnlageDaten") {
                         $vault.DocumentServiceExtensions.UpdateFileCategories($uploadFile.MasterId, 31, $uploadFile.Comm)
                     }
                 }
                 ".LILO" {
                     if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + ".dat")) {
-                        $hydroDat = Get-Content -path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + ".dat")
+                        
+                        try {
+                            $hydroDat = Get-Content -path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + ".dat")
 
-                        $motortyp = ($hydroDat -match "Power_Unit_Type").Replace("[Power_Unit_Type] ", "") + ($hydroDat -match "Valve_Model").Replace("[Valve_Model] ", " - ") + ($hydroDat -match "Pumpenbezeichnung").Replace("[Pumpenbezeichnung] ", "- ")
-                        $aufhaengung = ($hydroDat -match "Bauart")[0].Replace("[Bauart] ", "")
-                        $lageTreibscheibe = If (($hydroDat -match "Antrieb_im_Schacht").Replace("[Antrieb_im_Schacht] ", "") -eq "0") { "Antrieb im Maschinenraum" }else { "Antrieb im Schacht" }
-                        $treibscheibe = ($hydroDat -match "Zylinderbezeichnung").Replace("[Zylinderbezeichnung] ", "")
+                            $motortyp = ($hydroDat -match "Power_Unit_Type").Replace("[Power_Unit_Type] ", "") + ($hydroDat -match "Valve_Model").Replace("[Valve_Model] ", " - ") + ($hydroDat -match "Pumpenbezeichnung").Replace("[Pumpenbezeichnung] ", "- ")
+                            $aufhaengung = ($hydroDat -match "Bauart")[0].Replace("[Bauart] ", "")
+                            $lageTreibscheibe = If (($hydroDat -match "Antrieb_im_Schacht").Replace("[Antrieb_im_Schacht] ", "") -eq "0") { "Antrieb im Maschinenraum" }else { "Antrieb im Schacht" }
+                            $treibscheibe = ($hydroDat -match "Zylinderbezeichnung").Replace("[Zylinderbezeichnung] ", "")
+                        }
+                        catch {
+                            $motortyp = "Keine Angaben"
+                            $aufhaengung = "Keine Angaben"
+                            $lageTreibscheibe = "Keine Angaben"
+                            $treibscheibe = "Keine Angaben"
+                        }
+
                     }
                     Else {
                         $motortyp = "Keine CFP-Auslegung vorhanden"
@@ -402,7 +416,6 @@ try {
 
                     $VltHelpers.mUpdateFileProperties2($connection, $uploadFile, $newProps)
 
-                    $updateFile = $VltHelpers.mUpdateFileProperties($connection, $uploadFile, $newProbs )
                     if ($uploadFile.Cat.CatName -ne "AntriebsDaten") {
                         $vault.DocumentServiceExtensions.UpdateFileCategories($uploadFile.MasterId, 35, $uploadFile.Comm)
                     }
@@ -418,7 +431,6 @@ try {
 
                     $VltHelpers.mUpdateFileProperties2($connection, $uploadFile, $newProps)
 
-                    $updateFile = $VltHelpers.mUpdateFileProperties($connection, $uploadFile, $newProbs )
                     if ($uploadFile.Cat.CatName -ne "FertigungsDaten") {
                         $vault.DocumentServiceExtensions.UpdateFileCategories($uploadFile.MasterId, 32, $uploadFile.Comm)
                     }
@@ -434,7 +446,6 @@ try {
 
                     $VltHelpers.mUpdateFileProperties2($connection, $uploadFile, $newProps)
 
-                    $updateFile = $VltHelpers.mUpdateFileProperties($connection, $uploadFile, $newProbs )
                     if ($uploadFile.Cat.CatName -ne "Zeichnungsableitungen") {
                         $vault.DocumentServiceExtensions.UpdateFileCategories($uploadFile.MasterId, 24, $uploadFile.Comm)
                     }
@@ -445,7 +456,6 @@ try {
           
                     $VltHelpers.mUpdateFileProperties2($connection, $uploadFile, $newProps)
 
-                    $updateFile = $VltHelpers.mUpdateFileProperties($connection, $uploadFile, $newProbs )
                     if ($uploadFile.Cat.CatName -ne "Basis") {
                         $vault.DocumentServiceExtensions.UpdateFileCategories($uploadFile.MasterId, 1, $uploadFile.Comm)
                     }
