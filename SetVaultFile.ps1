@@ -313,7 +313,14 @@ try {
                 ".html" {
                     $html = New-Object -ComObject "HTMLFile"
                     try {
-                        $html.IHTMLDocument2_write($(Get-Content ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + ".html") -raw))
+                        $html.IHTMLDocument2_write((Get-Content ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + ".html") -raw))
+                    }
+                    catch {
+                        Add-Type -Path "C:\Program Files (x86)\Microsoft.NET\Primary Interop Assemblies\Microsoft.mshtml.dll"
+                        $html.IHTMLDocument2_write((Get-Content ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + ".html") -raw))                        
+                    }
+
+                    if ($null -ne $html) {
                         $motortyp = ($HTML.body.getElementsByTagName('tr') | Where-Object { $_.innerText -like "Motortyp*" -or $_.innerText -like "Motor type*" }).innerText
                         $infoAufhaengung = ($HTML.body.getElementsByTagName('tr') | Where-Object { $_.innerText -like "Aufhängung*" -or $_.innerText -like "Suspension/roping*" }).innerText
                         if ($null -ne $infoAufhaengung) {
@@ -325,13 +332,12 @@ try {
                             $Treibscheibe = $infoTreibscheibe.innerText[2] 
                         }
                     }
-                    catch {
+                    else {
                         $motortyp = "Keine Angaben"
                         $aufhaengung = "Keine Angaben"
                         $lageTreibscheibe = "Keine Angaben"
                         $treibscheibe = "Keine Angaben"
                     }
-            
                     $Beschreibung = "Antriebsauslegung Ziehl Abegg";
                     $Kategorie = "Berechnungen"    
                     $newProps.Add('Beschreibung', $Beschreibung)
