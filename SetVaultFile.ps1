@@ -6,7 +6,7 @@
      File Name : SetVaultFile.ps1
      Author : Buchholz Roland – roland.buchholz@berchtenbreiter-gmbh.de
 .VERSION
-     Version 0.9 – VDF Login
+     Version 0.95 – error handling missing path
 .EXAMPLE
      Beispiel wie das Script aufgerufen wird > SetVaultFile.ps1 -Auftragsnummer „8951234“
 .INPUTTYPE
@@ -189,7 +189,38 @@ try {
     foreach ($zertifikateFile in $zertifikateFiles) {
         $uploadFiles += $pathExtTUEVZertifikate + $zertifikateFile
     }
-        
+    
+    #Prüfen ob Verzeichnisstruktur im Vault vorhanden ist
+    $vaultPaths = @()
+    $vaultPaths += ($targetPath + "/" + $pathExtBerechnungen).TrimEnd("/")
+    if ($berechnungenPDFFiles.Count -gt 0) {
+        $vaultPaths += ($targetPath + "/" + $pathExtBerechnungenPDF).TrimEnd("/")
+    }
+    if ($cadFiles.Count -gt 0) {
+        $vaultPaths += ($targetPath + "/" + $pathExtCAD).TrimEnd("/CAD-CFP/")
+        $vaultPaths += ($targetPath + "/" + $pathExtCAD).TrimEnd("/")
+    }
+    if ($zertifikateFiles.Count -gt 0) {
+        $vaultPaths += ($targetPath + "/" + $pathExtTUEVZertifikate).TrimEnd("/TÜV/Zertifikate/")
+        $vaultPaths += ($targetPath + "/" + $pathExtTUEVZertifikate).TrimEnd("/Zertifikate/")
+        $vaultPaths += ($targetPath + "/" + $pathExtTUEVZertifikate).TrimEnd("/")
+    }
+
+    foreach ($vaultPath in $vaultPaths) {
+        $mFolder = $vault.DocumentService.FindFoldersByPaths($vaultPath)[0]
+
+        if ($mFolder.Id -eq -1) {
+            try {
+                $mFolderName = $vaultPath.Split("/")[-1]
+                $mFolderparentId = $vault.DocumentService.FindFoldersByPaths(($vaultPath).TrimEnd("/" + $mFolderName))[0].Id
+                $vault.DocumentService.AddFolder($mFolderName, $mFolderparentId, $false)
+            }
+            catch {
+                Write-Host  $vaultPath " konnte nicht erstellt werden"-ForegroundColor DarkRed
+            }
+        }
+    }
+
     #Prüfen ob Daten zum Upload vorhanden sind 
     if ($berechnungenPDFFiles -match 'Anlagedaten' -or 
         $berechnungenPDFFiles -match 'Lift data' -or 
@@ -256,10 +287,6 @@ try {
         $uploadTarget = -join ($targetPath, "/", $uploadFiles[$i])
         $uploadTargetPath = ( -join (Split-Path -Path $uploadTarget, "\")).Replace("\", "/")
 
-        $uploadFileResult = $VltHelpers.AddFile($connection, $uploadSource, $uploadTargetPath, $true)
-
-        $uploadFile = ($vault.DocumentService.FindLatestFilesByPaths($uploadTarget))[0]
-
         If ($null -eq $newProps) {        
             $newProps = New-Object 'system.collections.generic.dictionary[string,string]'
         }
@@ -267,8 +294,10 @@ try {
             $newProps.Clear()
         }
 
+        $uploadFileResult = $VltHelpers.AddFile($connection, $uploadSource, $uploadTargetPath, $true)
+    
         if ($uploadFileResult) {
-
+            $uploadFile = ($vault.DocumentService.FindLatestFilesByPaths($uploadTarget))[0]
             $Beschreibung = $uploadFile.Name.TrimStart($Auftragsnummer + "-")
 
             switch ([System.IO.Path]::GetExtension($uploadTarget)) {
@@ -278,9 +307,6 @@ try {
                     $newProps.Add('Projekt', $Auftragsnummer)
                     $newProps.Add('Verfasser', $verfasser)
                     $newProps.Add('Kategorie', $Kategorie)
-
-                    $VltHelpers.mUpdateFileProperties2($connection, $uploadFile, $newProps)
-
                     if ($uploadFile.Cat.CatName -ne "AnlageDaten") {
                         $vault.DocumentServiceExtensions.UpdateFileCategories($uploadFile.MasterId, 31, $uploadFile.Comm)
                     }
@@ -303,9 +329,6 @@ try {
                     $newProps.Add('Projekt', $Auftragsnummer)
                     $newProps.Add('Verfasser', $verfasser)
                     $newProps.Add('Kategorie', $Kategorie)
-
-                    $VltHelpers.mUpdateFileProperties2($connection, $uploadFile, $newProps)
-
                     if ($uploadFile.Cat.CatName -ne "Office") {
                         $vault.DocumentServiceExtensions.UpdateFileCategories($uploadFile.MasterId, 3, $uploadFile.Comm)
                     }
@@ -316,8 +339,13 @@ try {
                         $html.IHTMLDocument2_write((Get-Content ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + ".html") -raw))
                     }
                     catch {
-                        Add-Type -Path "C:\Program Files (x86)\Microsoft.NET\Primary Interop Assemblies\Microsoft.mshtml.dll"
-                        $html.IHTMLDocument2_write((Get-Content ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + ".html") -raw))                        
+                        try {
+                            $src = [System.Text.Encoding]::Unicode.GetBytes((Get-Content ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + ".html") -raw))
+                            $html.write($src)
+                        }
+                        catch {
+                            Write-Host "Html konnte nicht gelesen werden."-ForegroundColor DarkRed 
+                        }
                     }
 
                     if ($null -ne $html) {
@@ -348,9 +376,6 @@ try {
                     $newProps.Add('Aufhängung', $aufhaengung)
                     $newProps.Add('Lage Antrieb', $lageTreibscheibe)
                     $newProps.Add('Treibscheibe Zylinder', $treibscheibe )
-
-                    $VltHelpers.mUpdateFileProperties2($connection, $uploadFile, $newProps)
-
                     if ($uploadFile.Cat.CatName -ne "AntriebsDaten") {
                         $vault.DocumentServiceExtensions.UpdateFileCategories($uploadFile.MasterId, 35, $uploadFile.Comm)
                     }
@@ -362,9 +387,6 @@ try {
                     $newProps.Add('Projekt', $Auftragsnummer)
                     $newProps.Add('Verfasser', $verfasser)
                     $newProps.Add('Kategorie', $Kategorie)
-   
-                    $VltHelpers.mUpdateFileProperties2($connection, $uploadFile, $newProps)
-
                     if ($uploadFile.Cat.CatName -ne "AntriebsDaten") {
                         $vault.DocumentServiceExtensions.UpdateFileCategories($uploadFile.MasterId, 35, $uploadFile.Comm)
                     }
@@ -376,9 +398,6 @@ try {
                     $newProps.Add('Projekt', $Auftragsnummer)
                     $newProps.Add('Verfasser', $verfasser)
                     $newProps.Add('Kategorie', $Kategorie)
-
-                    $VltHelpers.mUpdateFileProperties2($connection, $uploadFile, $newProps)
-
                     if ($uploadFile.Cat.CatName -ne "AnlageDaten") {
                         $vault.DocumentServiceExtensions.UpdateFileCategories($uploadFile.MasterId, 31, $uploadFile.Comm)
                     }
@@ -419,9 +438,6 @@ try {
                     $newProps.Add('Aufhängung', $aufhaengung)
                     $newProps.Add('Lage Antrieb', $lageTreibscheibe)
                     $newProps.Add('Treibscheibe Zylinder', $treibscheibe )
-
-                    $VltHelpers.mUpdateFileProperties2($connection, $uploadFile, $newProps)
-
                     if ($uploadFile.Cat.CatName -ne "AntriebsDaten") {
                         $vault.DocumentServiceExtensions.UpdateFileCategories($uploadFile.MasterId, 35, $uploadFile.Comm)
                     }
@@ -434,9 +450,6 @@ try {
                     $newProps.Add('Projekt', $Auftragsnummer)
                     $newProps.Add('Verfasser', $verfasser)
                     $newProps.Add('Kategorie', $Kategorie)
-
-                    $VltHelpers.mUpdateFileProperties2($connection, $uploadFile, $newProps)
-
                     if ($uploadFile.Cat.CatName -ne "FertigungsDaten") {
                         $vault.DocumentServiceExtensions.UpdateFileCategories($uploadFile.MasterId, 32, $uploadFile.Comm)
                     }
@@ -449,9 +462,6 @@ try {
                     $newProps.Add('Verfasser', $verfasser)
                     $newProps.Add('Kategorie', $Kategorie)
                     $newProps.Add('Kommentare', "von CFP automatisch generierte Zeichnung")
-
-                    $VltHelpers.mUpdateFileProperties2($connection, $uploadFile, $newProps)
-
                     if ($uploadFile.Cat.CatName -ne "Zeichnungsableitungen") {
                         $vault.DocumentServiceExtensions.UpdateFileCategories($uploadFile.MasterId, 24, $uploadFile.Comm)
                     }
@@ -459,14 +469,15 @@ try {
                 default {
                     $newProps.Add('Beschreibung', $Beschreibung)
                     $newProps.Add('Projekt', $Auftragsnummer)
-          
-                    $VltHelpers.mUpdateFileProperties2($connection, $uploadFile, $newProps)
-
                     if ($uploadFile.Cat.CatName -ne "Basis") {
                         $vault.DocumentServiceExtensions.UpdateFileCategories($uploadFile.MasterId, 1, $uploadFile.Comm)
                     }
                 }
             }
+
+            $PropertyUpdateResult = $VltHelpers.mUpdateFileProperties2($connection, $uploadFile, $newProps)
+
+            if (!$PropertyUpdateResult) { Write-Host "Eigenschaften"$uploadFiles[$i]"konnten nicht aktualisiert werden!"-ForegroundColor DarkRed }
 
             Write-Host "Datei"$uploadFiles[$i]"wurde hochgeladen und eingechecked!"-ForegroundColor Yellow
         }
