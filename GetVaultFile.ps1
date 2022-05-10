@@ -6,7 +6,7 @@
      File Name : GetVaultFile.ps1
      Author : Buchholz Roland – roland.buchholz@berchtenbreiter-gmbh.de
 .VERSION
-     Version Version 0.8 – ReadOnly und VDF Login
+     Version Version 0.85 – download Spezifikation-Pdf
 .EXAMPLE
      Beispiel wie das Script aufgerufen wird > GetVaultFile.ps1 8951234 $true
                                                         (Auftragsnummer)(ReadOnly)
@@ -138,6 +138,7 @@ try {
     #Dateinamen der benötigten Dateien
     $downloadFiles = @()
     $downloadFiles += $Auftragsnummer + "-AutoDeskTransfer.xml"
+    $downloadFiles += $Auftragsnummer + "-Spezifikation.pdf"
     $downloadFiles += $Auftragsnummer + ".html"
     $downloadFiles += $Auftragsnummer + ".aus"
     $downloadFiles += $Auftragsnummer + ".dat"

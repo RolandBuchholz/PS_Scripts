@@ -6,7 +6,7 @@
      File Name : SetVaultFile.ps1
      Author : Buchholz Roland – roland.buchholz@berchtenbreiter-gmbh.de
 .VERSION
-     Version 0.95 – error handling missing path
+     Version 0.96 – error handling missing path
 .EXAMPLE
      Beispiel wie das Script aufgerufen wird > SetVaultFile.ps1 -Auftragsnummer „8951234“
 .INPUTTYPE
@@ -229,16 +229,12 @@ try {
         #Daten im Vault löschen
         $toDeleteVaultFiles = @()
 
-        $vaultPathBerechnungen = ($targetPath + "/" + $pathExtBerechnungenPDF).TrimEnd("/")
-        $vaultPathTUEVZertifikate = ($targetPath + "/" + $pathExtTUEVZertifikate).TrimEnd("/")
-
-        $vaultFolderBerechnungen = $vault.DocumentService.GetFolderByPath($vaultPathBerechnungen)
-        $vaultFolderTUEVZertifikate = $vault.DocumentService.GetFolderByPath($vaultPathTUEVZertifikate)
-
         $propDefs = $vault.PropertyService.GetPropertyDefinitionsByEntityClassId("FILE")
         $custPropDefIds = $propDefs | Where-Object { $_.IsSys -eq $false } | Select-Object -ExpandProperty Id
 
-        if ($berechnungenPDFFiles.Count -ge 1) {
+        if ($berechnungenPDFFiles.Count -gt 0) {
+            $vaultPathBerechnungen = ($targetPath + "/" + $pathExtBerechnungenPDF).TrimEnd("/")
+            $vaultFolderBerechnungen = $vault.DocumentService.GetFolderByPath($vaultPathBerechnungen)
             $files = $vault.DocumentService.GetLatestFilesByFolderId($vaultFolderBerechnungen.Id, $true)
             foreach ($file in $files) {
                 if ($file.Cat.CatName -eq "Office" -and $file.Name.EndsWith(".pdf")) {
@@ -253,7 +249,9 @@ try {
             } 
         }
 
-        if ($zertifikateFiles.Count -ge 1) {
+        if ($zertifikateFiles.Count -gt 0) {
+            $vaultPathTUEVZertifikate = ($targetPath + "/" + $pathExtTUEVZertifikate).TrimEnd("/")
+            $vaultFolderTUEVZertifikate = $vault.DocumentService.GetFolderByPath($vaultPathTUEVZertifikate)
             $files = $vault.DocumentService.GetLatestFilesByFolderId($vaultFolderTUEVZertifikate.Id, $true)
             foreach ($file in $files) {
                 if ($file.Cat.CatName -eq "Office" -and $file.Name.EndsWith(".pdf")) {
