@@ -6,7 +6,7 @@
      File Name : GetVaultFile.ps1
      Author : Buchholz Roland – roland.buchholz@berchtenbreiter-gmbh.de
 .VERSION
-     Version Version 0.85 – download Spezifikation-Pdf
+     Version Version 0.86 – new errCode 10 - CheckedOutByOtherUser
 .EXAMPLE
      Beispiel wie das Script aufgerufen wird > GetVaultFile.ps1 8951234 $true
                                                         (Auftragsnummer)(ReadOnly)
@@ -268,6 +268,11 @@ try {
     $downloadresult.CheckOutPC = $FileStatus["CheckOutPC"]
     $downloadresult.EditedBy = $FileStatus["EditedBy"]
     $downloadresult.ErrorState = $FileStatus["ErrorState"]
+
+    if ((!$ReadOnly) -and ($downloadresult.CheckOutState -eq "CheckedOutByOtherUser")) {
+        $errCode = 10 # Datei wurde von anderem User ausgechecked
+        LogOut($downloadresult)
+    }
 
     $errCode = 0
     LogOut($downloadresult)
