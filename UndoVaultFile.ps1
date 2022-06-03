@@ -6,7 +6,7 @@
      File Name : UndoVaultFile.ps1
      Author : Buchholz Roland – roland.buchholz@berchtenbreiter-gmbh.de
 .VERSION
-     Version 0.2 – FileStatus integrated
+     Version 0.25 – bugfix => undo SpezifikationsPdf
 .EXAMPLE
      Beispiel wie das Script aufgerufen wird > UndoVaultFile.ps1 -Auftragsnummer „8951234“
 .INPUTTYPE
@@ -173,6 +173,7 @@ try {
         #Dateinamen der benötigten Dateien
         $undoFiles = @()
         $undoFiles += $vaultPathAutodesktransferXml + "/" + $FileStatus["FileName"]
+        $undoFiles += $vaultPathAutodesktransferXml + "/" + $Auftragsnummer + "-Spezifikation.pdf"
         $undoFiles += $BerechnungenPath + $Auftragsnummer + ".html"
         $undoFiles += $BerechnungenPath + $Auftragsnummer + ".aus"
         $undoFiles += $BerechnungenPath + $Auftragsnummer + ".dat"
@@ -181,7 +182,7 @@ try {
         $vaultFoundUndoFiles = $vault.DocumentService.FindLatestFilesByPaths($undoFiles)
 
         $downloadTicket = New-Object Autodesk.Connectivity.WebServices.ByteArray
-
+        
         foreach ($vaultFoundUndoFile in $vaultFoundUndoFiles) {
             if ($vaultFoundUndoFile.Id -gt 0 -and $vaultFoundUndoFile.CheckedOut) {
                 $vault.DocumentService.UndoCheckoutFile($vaultFoundUndoFile.MasterId, [ref]$downloadTicket)
