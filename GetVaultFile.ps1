@@ -6,7 +6,7 @@
      File Name : GetVaultFile.ps1
      Author : Buchholz Roland – roland.buchholz@berchtenbreiter-gmbh.de
 .VERSION
-     Version Version 0.86 – new errCode 10 - CheckedOutByOtherUser
+     Version Version 0.87 – CheckedOutByOtherUser set ReadOnly true
 .EXAMPLE
      Beispiel wie das Script aufgerufen wird > GetVaultFile.ps1 8951234 $true
                                                         (Auftragsnummer)(ReadOnly)
@@ -194,6 +194,23 @@ try {
             }
         }
     }
+    else {
+        $SearchCriteria = New-Object 'system.collections.generic.dictionary[string,string]'
+        $SearchCriteria.Add("Name", "")
+        $SearchCriteria["Name"] = $downloadFiles[0]
+        $ADTFile = $VltHelpers.GetFileBySearchCriteria($connection, $SearchCriteria, $true, $false)
+
+        #FileStatus auslesen 
+        $FileStatus = New-Object 'system.collections.generic.dictionary[string,string]'
+        $FileStatus = $VltHelpers.GetVaultFileStatus($connection, $ADTFile)
+
+        if ($FileStatus["CheckOutState"] -eq "CheckedOutByOtherUser") {
+            $ReadOnly = $true
+            $errCode = 10
+        }
+    }
+
+
 
     #Dateien im Vault suchen (auschecken) und den Arbeitsbereich ermitteln
     $SearchCriteria = New-Object 'system.collections.generic.dictionary[string,string]'
@@ -269,7 +286,7 @@ try {
     $downloadresult.EditedBy = $FileStatus["EditedBy"]
     $downloadresult.ErrorState = $FileStatus["ErrorState"]
 
-    if ((!$ReadOnly) -and ($downloadresult.CheckOutState -eq "CheckedOutByOtherUser")) {
+    if (((!$ReadOnly) -and ($downloadresult.CheckOutState -eq "CheckedOutByOtherUser")) -or ($errCode -eq 10)) {
         $errCode = 10 # Datei wurde von anderem User ausgechecked
         LogOut($downloadresult)
     }

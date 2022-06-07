@@ -6,7 +6,7 @@
      File Name : SetVaultFile.ps1
      Author : Buchholz Roland – roland.buchholz@berchtenbreiter-gmbh.de
 .VERSION
-     Version 0.96 – error handling missing path
+       Version 0.97 – new ErrorCode 11 CheckedOutLinkedFilesByOtherUser
 .EXAMPLE
      Beispiel wie das Script aufgerufen wird > SetVaultFile.ps1 -Auftragsnummer „8951234“
 .INPUTTYPE
@@ -125,13 +125,13 @@ try {
     $sourceFile = Get-ChildItem -Path $seachPath -Recurse -Include $seachFile
     if ($null -eq $sourceFile) {
         Write-Host "AutoDeskTransferXml im Arbeitsbereich nicht gefunden."-ForegroundColor DarkRed
-        $errCode = "7" # Datei im Arbeitsbereich nicht gefunden
+        $errCode = 7 # Datei im Arbeitsbereich nicht gefunden
         $downloadresult.Success = $false
         LogOut($downloadresult)
     }
     if ($sourceFile.Count -gt 1) {
         Write-Host "AutoDeskTransferXml mehrfach im Arbeitsbereich vorhanden."-ForegroundColor DarkRed
-        $errCode = "5"# AutoDeskTransferXml mehrfach im Arbeitsbereich vorhanden.
+        $errCode = 5 # AutoDeskTransferXml mehrfach im Arbeitsbereich vorhanden.
         $downloadresult.Success = $false
         LogOut($downloadresult)
     }
@@ -174,6 +174,28 @@ try {
     if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + "-ZZE-S.txt")) { $uploadFiles += $pathExtBerechnungen + $Auftragsnummer + "-ZZE-S.txt" }
     if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + "-G.txt")) { $uploadFiles += $pathExtBerechnungen + $Auftragsnummer + "-G.txt" }
     
+    #FileCheck CheckedOutLinkedFilesByOtherUser
+    foreach ($uploadFile in $uploadFiles) {
+        #FileStatus auslesen
+        $LinkedFile = Get-ChildItem -Path ($sourcePath + $uploadFile)
+        $LinkedFileStatus = New-Object 'system.collections.generic.dictionary[string,string]'
+        $LinkedFileStatus = $VltHelpers.GetVaultFileStatus($connection, $LinkedFile )
+
+        if ($LinkedFileStatus["CheckOutState"] -eq "CheckedOutByOtherUser") {
+            Write-Host "AutoDeskTransferXml verbundene Dateien durch anderen Benutzer ausgechecked."-ForegroundColor DarkRed
+            $downloadresult.FileName = $LinkedFileStatus["FileName"]
+            $downloadresult.FullFileName = $LinkedFileStatus["FullFileName"]
+            $downloadresult.CheckOutState = $LinkedFileStatus["CheckOutState"]
+            $downloadresult.IsCheckOut = [System.Convert]::ToBoolean($LinkedFileStatus["CheckOut"])
+            $downloadresult.CheckOutPC = $LinkedFileStatus["CheckOutPC"]
+            $downloadresult.EditedBy = $LinkedFileStatus["EditedBy"]
+            $downloadresult.ErrorState = $LinkedFileStatus["ErrorState"]
+            $errCode = 11 # Xml verbundene Dateien durch anderen Benutzer ausgechecked.
+            $downloadresult.Success = $false
+            LogOut($downloadresult)
+        }
+    }
+
     if (Test-Path ($sourcePath + $pathExtBerechnungenPDF)) { $berechnungenPDFFiles = Get-ChildItem -Path ($sourcePath + $pathExtBerechnungenPDF) -Filter  *.pdf }
     if (Test-Path ($sourcePath + $pathExtCAD)) { $cadFiles = Get-ChildItem -Path ($sourcePath + $pathExtCAD) -Filter  *.dwg }
     if (Test-Path ($sourcePath + $pathExtTUEVZertifikate)) { $zertifikateFiles = Get-ChildItem -Path ($sourcePath + $pathExtTUEVZertifikate) -Filter  *.pdf }
