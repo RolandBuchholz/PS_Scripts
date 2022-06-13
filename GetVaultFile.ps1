@@ -6,7 +6,7 @@
      File Name : GetVaultFile.ps1
      Author : Buchholz Roland – roland.buchholz@berchtenbreiter-gmbh.de
 .VERSION
-     Version Version 0.88 – new ErrorCode 11 CheckedOutLinkedFilesByOtherUser
+     Version 0.89 – bugfix CheckedOutLinkedFilesByOtherUser
 .EXAMPLE
      Beispiel wie das Script aufgerufen wird > GetVaultFile.ps1 8951234 $true
                                                         (Auftragsnummer)(ReadOnly)
@@ -253,8 +253,23 @@ try {
                     $SearchCriteriaLinkFile["Name"] = $downloadFiles[$i]
                     $linkedVaultFile = $VltHelpers.GetFileBySearchCriteria($connection, $SearchCriteriaLinkFile, $true, $false)
                     $LinkedFileStatus = New-Object 'system.collections.generic.dictionary[string,string]'
-                    $LinkedFileStatus = $VltHelpers.GetVaultFileStatus($connection, $linkedVaultFile)
 
+                    if ($linkedVaultFile -eq "CheckOut failed") {
+                        $sourcePath = $ADTFile.Replace($Auftragsnummer + "-AutoDeskTransfer.xml", "")
+
+                        if ($downloadFiles[$i] -match "-Spezifikation.pdf") {
+                            $linkedVaultFile = $sourcePath + $downloadFiles[$i]
+                        }
+                        else {
+                            $linkedVaultFile = $sourcePath + "Berechnungen\" + $downloadFiles[$i]
+                        }
+                        
+                        $LinkedFileStatus = $VltHelpers.GetVaultFileStatus($connection, $linkedVaultFile)
+                    }
+                    else {
+                        $LinkedFileStatus = $VltHelpers.GetVaultFileStatus($connection, $linkedVaultFile)
+                    }
+          
                     if ($LinkedFileStatus["CheckOutState"] -eq "CheckedOutByOtherUser") {
                         Write-Host "AutoDeskTransferXml verbundene Dateien durch anderen Benutzer ausgechecked."-ForegroundColor DarkRed
                         $downloadresult.FileName = $LinkedFileStatus["FileName"]
