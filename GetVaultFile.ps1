@@ -6,7 +6,7 @@
      File Name : GetVaultFile.ps1
      Author : Buchholz Roland – roland.buchholz@berchtenbreiter-gmbh.de
 .VERSION
-     Version Version 0.87 – CheckedOutByOtherUser set ReadOnly true
+     Version Version 0.88 – new ErrorCode 11 CheckedOutLinkedFilesByOtherUser
 .EXAMPLE
      Beispiel wie das Script aufgerufen wird > GetVaultFile.ps1 8951234 $true
                                                         (Auftragsnummer)(ReadOnly)
@@ -145,7 +145,6 @@ try {
     $downloadFiles += $Auftragsnummer + ".LILO"
 
     #Quellpfad ermitteln
-
     if ($ReadOnly) {
         $seachFile = $Auftragsnummer + "-AutoDeskTransfer.xml"
 
@@ -210,8 +209,6 @@ try {
         }
     }
 
-
-
     #Dateien im Vault suchen (auschecken) und den Arbeitsbereich ermitteln
     $SearchCriteria = New-Object 'system.collections.generic.dictionary[string,string]'
     $SearchCriteria.Add("Name", "")
@@ -247,6 +244,28 @@ try {
                         Write-Host "Datei wurde im Vault nicht gefunden. Überprüfen Sie Ihre Eingabe!"-ForegroundColor DarkRed
                         $downloadresult.Success = $false
                         $errCode = 7 # Datei in Vault nicht gefunden
+                        LogOut($downloadresult)
+                    }
+                }
+                elseif ($ReadOnly -eq $false) {
+                    $SearchCriteriaLinkFile = New-Object 'system.collections.generic.dictionary[string,string]'
+                    $SearchCriteriaLinkFile.Add("Name", "")
+                    $SearchCriteriaLinkFile["Name"] = $downloadFiles[$i]
+                    $linkedVaultFile = $VltHelpers.GetFileBySearchCriteria($connection, $SearchCriteriaLinkFile, $true, $false)
+                    $LinkedFileStatus = New-Object 'system.collections.generic.dictionary[string,string]'
+                    $LinkedFileStatus = $VltHelpers.GetVaultFileStatus($connection, $linkedVaultFile)
+
+                    if ($LinkedFileStatus["CheckOutState"] -eq "CheckedOutByOtherUser") {
+                        Write-Host "AutoDeskTransferXml verbundene Dateien durch anderen Benutzer ausgechecked."-ForegroundColor DarkRed
+                        $downloadresult.FileName = $LinkedFileStatus["FileName"]
+                        $downloadresult.FullFileName = $LinkedFileStatus["FullFileName"]
+                        $downloadresult.CheckOutState = $LinkedFileStatus["CheckOutState"]
+                        $downloadresult.IsCheckOut = [System.Convert]::ToBoolean($LinkedFileStatus["CheckOut"])
+                        $downloadresult.CheckOutPC = $LinkedFileStatus["CheckOutPC"]
+                        $downloadresult.EditedBy = $LinkedFileStatus["EditedBy"]
+                        $downloadresult.ErrorState = $LinkedFileStatus["ErrorState"]
+                        $errCode = 11 # Xml verbundene Dateien durch anderen Benutzer ausgechecked.
+                        $downloadresult.Success = $false
                         LogOut($downloadresult)
                     }
                 }
