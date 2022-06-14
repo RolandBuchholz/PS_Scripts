@@ -6,7 +6,7 @@
      File Name : UndoVaultFile.ps1
      Author : Buchholz Roland – roland.buchholz@berchtenbreiter-gmbh.de
 .VERSION
-     Version 0.25 – bugfix => undo SpezifikationsPdf
+     Version 0.30 – control adminpermissions 
 .EXAMPLE
      Beispiel wie das Script aufgerufen wird > UndoVaultFile.ps1 -Auftragsnummer „8951234“
 .INPUTTYPE
@@ -184,12 +184,18 @@ try {
         $downloadTicket = New-Object Autodesk.Connectivity.WebServices.ByteArray
         
         foreach ($vaultFoundUndoFile in $vaultFoundUndoFiles) {
+            
             if ($vaultFoundUndoFile.Id -gt 0 -and $vaultFoundUndoFile.CheckedOut) {
-                $vault.DocumentService.UndoCheckoutFile($vaultFoundUndoFile.MasterId, [ref]$downloadTicket)
-            } 
+                #FileStatus auslesen 
+                $undoFileStatus = New-Object 'system.collections.generic.dictionary[string,string]'
+                $undoFileStatus = $VltHelpers.GetVaultFileStatus($connection, $vaultFoundUndoFile.CkOutSpec)
+
+                if ($undoFileStatus["CheckOutState"] -eq "CheckedOutByCurrentUser" ) {
+                    $vault.DocumentService.UndoCheckoutFile($vaultFoundUndoFile.MasterId, [ref]$downloadTicket)
+                }
+            }
         }
         
-
         #FileStatus auslesen 
         $FileStatus = New-Object 'system.collections.generic.dictionary[string,string]'
         $FileStatus = $VltHelpers.GetVaultFileStatus($connection, $sourceFile.FullName) 
