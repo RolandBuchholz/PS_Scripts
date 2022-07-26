@@ -6,7 +6,7 @@
      File Name : GetVaultFile.ps1
      Author : Buchholz Roland – roland.buchholz@berchtenbreiter-gmbh.de
 .VERSION
-     Version 0.89 – bugfix CheckedOutLinkedFilesByOtherUser
+     Version 0.90 – pre-planning support
 .EXAMPLE
      Beispiel wie das Script aufgerufen wird > GetVaultFile.ps1 8951234 $true
                                                         (Auftragsnummer)(ReadOnly)
@@ -71,6 +71,9 @@ if (($Auftragsnummer.Length -eq 6 -or $Auftragsnummer.Length -eq 7) -and $Auftra
 }
 elseif ($Auftragsnummer -match '[0-9]{2}[-]0[1-9]|1[0-2][-][0-9]{4}') {
     $AuftragsTyp = "Angebot"
+}
+elseif ($Auftragsnummer -match 'VP[-][0-9]{2}[-][0-9]{4}') {
+    $AuftragsTyp = "Vorplanung"
 }
 else {
     $errCode = 6 #Invalide Auftrags bzw. Angebotsnummer
@@ -151,7 +154,7 @@ try {
         if ($AuftragsTyp -eq "Auftrag") {
             $seachPath = "C:\Work\AUFTRÄGE NEU\\Konstruktion"
         }
-        elseif ($AuftragsTyp -eq "Angebot") {
+        elseif ($AuftragsTyp -eq "Angebot" -or $AuftragsTyp -eq "Vorplanung" ) {
             $seachPath = "C:\Work\AUFTRÄGE NEU\Angebote"
         }
         else {

@@ -6,7 +6,7 @@
      File Name : SetVaultFile.ps1
      Author : Buchholz Roland – roland.buchholz@berchtenbreiter-gmbh.de
 .VERSION
-       Version 0.97 – new ErrorCode 11 CheckedOutLinkedFilesByOtherUser
+       Version 0.98 – pre-planning support
 .EXAMPLE
      Beispiel wie das Script aufgerufen wird > SetVaultFile.ps1 -Auftragsnummer „8951234“
 .INPUTTYPE
@@ -70,6 +70,9 @@ if (($Auftragsnummer.Length -eq 6 -or $Auftragsnummer.Length -eq 7) -and $Auftra
 elseif ($Auftragsnummer -match '[0-9]{2}[-]0[1-9]|1[0-2][-][0-9]{4}') {
     $AuftragsTyp = "Angebot"
 }
+elseif ($Auftragsnummer -match 'VP[-][0-9]{2}[-][0-9]{4}') {
+    $AuftragsTyp = "Vorplanung"
+}
 else {
     $errCode = 6 #Invalide Auftrags bzw. Angebotsnummer
     $downloadresult.Success = $false
@@ -115,7 +118,7 @@ try {
     if ($AuftragsTyp -eq "Auftrag") {
         $seachPath = "C:\Work\AUFTRÄGE NEU\\Konstruktion"
     }
-    elseif ($AuftragsTyp -eq "Angebot") {
+    elseif ($AuftragsTyp -eq "Angebot" -or $AuftragsTyp -eq "Vorplanung" ) {
         $seachPath = "C:\Work\AUFTRÄGE NEU\Angebote"
     }
     else {
