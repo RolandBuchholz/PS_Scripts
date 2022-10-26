@@ -6,7 +6,7 @@
      File Name : SetVaultFile.ps1
      Author : Buchholz Roland – roland.buchholz@berchtenbreiter-gmbh.de
 .VERSION
-       Version 0.98 – pre-planning support
+       Version 0.99 – bugfix travelCalculation
 .EXAMPLE
      Beispiel wie das Script aufgerufen wird > SetVaultFile.ps1 -Auftragsnummer „8951234“
 .INPUTTYPE
@@ -523,8 +523,6 @@ try {
     $xml = [XML] (Get-Content -Path $pfadxml -Encoding UTF8)
 
     $parameter = $xml.selectNodes("//ParamWithValue")
-    #$parameter | select name, value, typeCode
-
 
     $var_FabrikNummer = $parameter | Where-Object { $_.name -eq "var_FabrikNummer" }
     $var_Kennwort = $parameter | Where-Object { $_.name -eq "var_Kennwort" }
@@ -574,9 +572,10 @@ try {
     $kabinenflaeche = $folderProps | Where-Object { $_.PropDefId -eq "143" }
     $kommentare = $folderProps | Where-Object { $_.PropDefId -eq "24" }
 
-    #Föderhöhe in Meter umwandeln
+    #Föderhöhe in Millimeter umwandeln
     if ($null -ne $var_FH.value) {
-        $var_FH.value = $var_FH.value * 1000
+        $FHmm = [System.Convert]::ToDecimal($var_FH.value, [cultureinfo]::GetCultureInfo('de-DE')) * 1000
+        $var_FH.value = $FHmm.tostring()
     }
 
 
