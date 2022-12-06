@@ -1,9 +1,9 @@
-Add-Type -path "C:\Program Files\Autodesk\Vault Client 2022\Explorer\Autodesk.DataManagement.Client.Framework.Vault.Forms.dll"
-Add-Type -path "C:\Program Files\Autodesk\Vault Client 2022\Explorer\Autodesk.DataManagement.Client.Framework.Vault.dll"
-[System.Reflection.Assembly]::LoadFrom($Env:ProgramData + "\Autodesk\Vault 2022\Extensions\DataStandard\Vault.Custom\addinVault\VdsSampleUtilities.dll")
+﻿Add-Type -path "C:\Program Files\Autodesk\Vault Client 2023\Explorer\Autodesk.DataManagement.Client.Framework.Vault.Forms.dll"
+Add-Type -path "C:\Program Files\Autodesk\Vault Client 2023\Explorer\Autodesk.DataManagement.Client.Framework.Vault.dll"
+[System.Reflection.Assembly]::LoadFrom($Env:ProgramData + "\Autodesk\Vault 2023\Extensions\DataStandard\Vault.Custom\addinVault\VdsSampleUtilities.dll")
 
 $ReadOnly = $false
-$ReadOnly = $true     
+#$ReadOnly = $true     
 
 if ($ReadOnly) {
     try {
@@ -44,65 +44,46 @@ else {
     }   
 }
 
-
-function FindFile($fileName) {
-    $filePropDefs = $vault.PropertyService.GetPropertyDefinitionsByEntityClassId("FILE")
-    $fileNamePropDef = $filePropDefs | Where-Object { $_.SysName -eq "Name" }
-    $srchCond = New-Object 'Autodesk.Connectivity.WebServices.SrchCond'
-    $srchCond.PropDefId = $fileNamePropDef.Id
-    $srchCond.PropTyp = "SingleProperty"
-    $srchCond.SrchOper = 3 #is equal
-    $srchCond.SrchRule = "Must"
-    $srchCond.SrchTxt = $fileName
-
-    $bookmark = ""
-    $status = $null
-    $totalResults = @()
-    while ($null -eq $status -or $totalResults.Count -lt $status.TotalHits) {
-        $results = $vault.DocumentService.FindFilesBySearchConditions(@($srchCond), $null, $null, $false, $true, [ref]$bookmark, [ref]$status)
-        if ($null -ne $results) {
-            $totalResults += $results
-        }
-        else { break }
-    }
-    return $totalResults;
-}
-
 $vault = $connection.WebServiceManager
-
-# $downloadFullFileName = FindFile("1001042-AutoDeskTransfer.xml")
-
-
-$user = $connection.UserName
 $VltHelpers = New-Object VdsSampleUtilities.VltHelpers
 
-$Path = "$/Administration/Vault.ico"
-$Test = $VltHelpers.mGetFileByFullFileName($connection, $Path)
 
-$SearchCriteria = New-Object 'system.collections.generic.dictionary[string,string]'
-$SearchCriteria.Add("Name", "1001042-AutoDeskTransfer.xml")
+$targetPath = "$/AUFTRÄGE NEU/Konstruktion/895/8951475"
 
-$Test2 = $VltHelpers.GetFileBySearchCriteria($connection, $SearchCriteria)
-$Test2
-Add-Type -AssemblyName System.Windows.Forms
-Add-Type -AssemblyName System.Drawing
-$window = New-Object System.Windows.Forms.Form
-$window.Width = 400
-$window.Height = 100
- 
-$Label = New-Object System.Windows.Forms.Label
-$Label.Location = New-Object System.Drawing.Size(10, 10)
-$Label.Text = $user
-$Label.AutoSize = $True
+$folder = $vault.DocumentService.GetFolderByPath($targetPath)
+$propDefs = $vault.PropertyService.GetPropertyDefinitionsByEntityClassId("FLDR")
 
-$Label2 = New-Object System.Windows.Forms.Label
-$Label2.Location = New-Object System.Drawing.Size(10, 30)
-$Label2.Text = $downloadFullFileName.Name
-$Label2.AutoSize = $True
+$folderProps = $vault.PropertyService.GetPropertiesByEntityIds("FLDR", @($folder.Id))
 
-$window.Controls.Add($Label)
-$window.Controls.Add($Label2)
-[void]$window.ShowDialog()
+$udpIds = $propDefs | Where-Object { $_.IsSys -eq $false } | Select-Object -ExpandProperty Id
+$folderProps = $folderProps | Where-Object { $_.Propdefid -in $udpIds }
+
+$kommentare = $folderProps | Where-Object { $_.PropDefId -eq "24" }
+$kabinenflaeche = $folderProps | Where-Object { $_.PropDefId -eq "143" }
+
+$kommentare.Val = "Hallllo"
+$kabinenflaeche.Val = 2.26
+
+
+$propValues = New-Object Autodesk.Connectivity.WebServices.PropInstParamArray
+$propValues.Items = New-Object Autodesk.Connectivity.WebServices.PropInstParam[] $folderProps.Count
+$i = 0
+foreach ($d in $folderProps.GetEnumerator()) {
+    $propValues.Items[$i] = New-Object Autodesk.Connectivity.WebServices.PropInstParam -Property @{PropDefId = $d.PropDefId; Val = $d.Val }
+    $i++
+}
+
+
+
+try {
+    $vault.DocumentServiceExtensions.UpdateFolderProperties(@($folder.Id), @($propValues))
+}
+catch {
+    $test = "Hallo"
+}
+
+
+
 
 # $vault.Dispose()
 $logOff = [Autodesk.DataManagement.Client.Framework.Vault.Library]::ConnectionManager.LogOut($connection)

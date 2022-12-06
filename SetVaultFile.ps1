@@ -6,7 +6,7 @@
      File Name : SetVaultFile.ps1
      Author : Buchholz Roland – roland.buchholz@berchtenbreiter-gmbh.de
 .VERSION
-       Version 0.99 – bugfix travelCalculation
+       Version 1.00 – Vault 2023 support
 .EXAMPLE
      Beispiel wie das Script aufgerufen wird > SetVaultFile.ps1 -Auftragsnummer „8951234“
 .INPUTTYPE
@@ -36,13 +36,26 @@ class DownloadInfo {
 }
 
 try {
-    Add-Type -path "C:\Program Files\Autodesk\Vault Client 2022\Explorer\Autodesk.DataManagement.Client.Framework.Vault.Forms.dll"
-    Add-Type -path "C:\Program Files\Autodesk\Vault Client 2022\Explorer\Autodesk.DataManagement.Client.Framework.Vault.dll"
-    [System.Reflection.Assembly]::LoadFrom($Env:ProgramData + "\Autodesk\Vault 2022\Extensions\DataStandard\Vault.Custom\addinVault\VdsSampleUtilities.dll")
+    $clientFrameworkVaultPath = "C:\Program Files\Autodesk\Vault Client 2023\Explorer\Autodesk.DataManagement.Client.Framework.Vault.dll"
+    if (Test-Path $clientFrameworkVaultPath) {
+        Add-Type -path "C:\Program Files\Autodesk\Vault Client 2023\Explorer\Autodesk.DataManagement.Client.Framework.Vault.Forms.dll"
+        Add-Type -path "C:\Program Files\Autodesk\Vault Client 2023\Explorer\Autodesk.DataManagement.Client.Framework.Vault.dll"
+    }
+    else {
+        Add-Type -path "C:\Program Files\Autodesk\Vault Client 2022\Explorer\Autodesk.DataManagement.Client.Framework.Vault.Forms.dll"
+        Add-Type -path "C:\Program Files\Autodesk\Vault Client 2022\Explorer\Autodesk.DataManagement.Client.Framework.Vault.dll"
+    }
+    $vdsSampleUtilitiesPath = ($Env:ProgramData + "\Autodesk\Vault 2023\Extensions\DataStandard\Vault.Custom\addinVault\VdsSampleUtilities.dll")
+    if (Test-Path $vdsSampleUtilitiesPath) {
+        [System.Reflection.Assembly]::LoadFrom($Env:ProgramData + "\Autodesk\Vault 2023\Extensions\DataStandard\Vault.Custom\addinVault\VdsSampleUtilities.dll")
+    }
+    else {
+        [System.Reflection.Assembly]::LoadFrom($Env:ProgramData + "\Autodesk\Vault 2022\Extensions\DataStandard\Vault.Custom\addinVault\VdsSampleUtilities.dll")
+    }  
 }
 catch {
-    Write-Host "Vault Client 2022 oder DataStandard wurde nicht gefunden!"
-    $errCode = 9 #Vault Client 2022 oder DataStandard wurde nicht gefunden
+    Write-Host "Vault Client oder DataStandard wurde nicht gefunden!"
+    $errCode = 9 #Vault Client oder DataStandard wurde nicht gefunden
     $downloadresult.Success = $false
     LogOut($downloadresult)
 }
@@ -82,14 +95,15 @@ else {
 
 try {
 
-    $AdskLicensing = "C:\Windows\System32\WindowsPowerShell\v1.0\AdskLicensingSDK_5.dll"
+    $AdskLicensing = "C:\Windows\System32\WindowsPowerShell\v1.0\AdskLicensingSDK_6.dll"
     if (!(Test-Path $AdskLicensing -PathType leaf)) {
         try {
-            Copy-Item -Path "C:\Program Files\Autodesk\Vault Client 2022\Explorer\AdskLicensingSDK_5.dll" -Destination "C:\Windows\System32\WindowsPowerShell\v1.0\AdskLicensingSDK_5.dll"
+            Copy-Item -Path "C:\Program Files\Autodesk\Vault Client 2023\Explorer\AdskLicensingSDK_6.dll" -Destination "C:\Windows\System32\WindowsPowerShell\v1.0\AdskLicensingSDK_6.dll"
         }
         catch {
-            Write-Host "AdskLicensingSDK_5.dll wurde nicht gefunden!"
-            $errCode = 8 #Fehlende AdskLicensingSDK_5.dll
+            Write-Host "AdskLicensingSDK_6.dll wurde nicht gefunden!"
+            $errCode = 8 #Fehlende AdskLicensingSDK_6.dll
+            $downloadresult.Success = $false
             LogOut($downloadresult)
         } 
     }
@@ -166,6 +180,7 @@ try {
     $uploadFiles = @()
     $uploadFiles += $Auftragsnummer + "-AutoDeskTransfer.xml"
     if (Test-Path ($sourcePath + $Auftragsnummer + "-Spezifikation.pdf")) { $uploadFiles += $Auftragsnummer + "-Spezifikation.pdf" }
+    if (Test-Path ($sourcePath + $Auftragsnummer + "-LiftHistory.json")) { $uploadFiles += $Auftragsnummer + "-LiftHistory.json" }
     if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + ".html")) { $uploadFiles += $pathExtBerechnungen + $Auftragsnummer + ".html" }
     if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + ".aus")) { $uploadFiles += $pathExtBerechnungen + $Auftragsnummer + ".aus" }
     if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + ".dat")) { $uploadFiles += $pathExtBerechnungen + $Auftragsnummer + ".dat" }
@@ -354,6 +369,16 @@ try {
                     $newProps.Add('Kategorie', $Kategorie)
                     if ($uploadFile.Cat.CatName -ne "Office") {
                         $vault.DocumentServiceExtensions.UpdateFileCategories($uploadFile.MasterId, 3, $uploadFile.Comm)
+                    }
+                }
+                ".json" {
+                    $Kategorie = "Dokumentation"
+                    $newProps.Add('Beschreibung', $Beschreibung)
+                    $newProps.Add('Projekt', $Auftragsnummer)
+                    $newProps.Add('Verfasser', $verfasser)
+                    $newProps.Add('Kategorie', $Kategorie)
+                    if ($uploadFile.Cat.CatName -ne "AnlageDaten") {
+                        $vault.DocumentServiceExtensions.UpdateFileCategories($uploadFile.MasterId, 31, $uploadFile.Comm)
                     }
                 }
                 ".html" {
@@ -597,8 +622,10 @@ try {
     $kabinenbreite.Val = $var_KBI.value
     $kabinentiefe.Val = $var_KTI.value
     $kabinenhoehe.Val = $var_KHLicht.value
-    $kabinenflaeche.Val = $var_A_Kabine.value
     $kommentare.Val = $var_Kommentare.value
+    if (-Not [string]::IsNullOrWhitespace($var_A_Kabine.value)) {
+        $kabinenflaeche.Val = $var_A_Kabine.value
+    }
 
     $propValues = New-Object Autodesk.Connectivity.WebServices.PropInstParamArray
     $propValues.Items = New-Object Autodesk.Connectivity.WebServices.PropInstParam[] $folderProps.Count
@@ -609,8 +636,7 @@ try {
     }
 
     $vault.DocumentServiceExtensions.UpdateFolderProperties(@($folder.Id), @($propValues))
-
-        
+  
     #Housekeeping
 
     $workPathBerechnungenPDF = $sourcePath + $pathExtBerechnungenPDF
@@ -626,6 +652,7 @@ try {
     $deleteFiles = @()
     $deleteFiles += $Auftragsnummer + "-AutoDeskTransfer.xml"
     if (Test-Path ($sourcePath + $Auftragsnummer + "-Spezifikation.pdf")) { $deleteFiles += $Auftragsnummer + "-Spezifikation.pdf" }
+    if (Test-Path ($sourcePath + $Auftragsnummer + "-LiftHistory.json")) { $deleteFiles += $Auftragsnummer + "-LiftHistory.json" }
     if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + ".html")) { $deleteFiles += $pathExtBerechnungen + $Auftragsnummer + ".html" }
     if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + ".aus")) { $deleteFiles += $pathExtBerechnungen + $Auftragsnummer + ".aus" }
     if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + ".dat")) { $deleteFiles += $pathExtBerechnungen + $Auftragsnummer + ".dat" }

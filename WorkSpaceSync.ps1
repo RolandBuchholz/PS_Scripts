@@ -6,7 +6,7 @@
      File Name : WorkSpaceSync.ps1
      Author : Buchholz Roland – roland.buchholz@berchtenbreiter-gmbh.de
 .VERSION
-     Version Version 0.2 – error handling
+     Version 1.00 – Vault 2023 support
 .EXAMPLE
      Beispiel wie das Script aufgerufen wird > WorkSpaceSync.ps1
 .INPUTTYPE
@@ -17,7 +17,7 @@
      Vault Server
 #>
 $administrationFolderPath = "C:\Work\Administration"
-$vaultExplorer = '"C:\Program Files\Autodesk\Vault Client 2022\Explorer\Connectivity.WorkspaceSync.exe"'
+$vaultExplorer = '"C:\Program Files\Autodesk\Vault Client 2023\Explorer\Connectivity.WorkspaceSync.exe"'
 $server = "192.168.0.1"
 $vaultName = "Vault"
 $vaultUserName = "BE-Automation"
