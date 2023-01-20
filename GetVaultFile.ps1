@@ -6,13 +6,15 @@
      File Name : GetVaultFile.ps1
      Author : Buchholz Roland – roland.buchholz@berchtenbreiter-gmbh.de
 .VERSION
-     Version 1.00 – Vault 2023 support
-.EXAMPLE
+     Version 1.10 – add custom filedownload
      Beispiel wie das Script aufgerufen wird > GetVaultFile.ps1 8951234 $true
                                                         (Auftragsnummer)(ReadOnly)
+     Beispiel für beliebige Datei > GetVaultFile.ps1 BerechnungXY.pdf $true $true
+                                                (Auftragsnummer)(ReadOnly)(CustomFile)                                                  
 .INPUTTYPE
      [String]Auftragsnummer
-     [bool]ReadOnly  
+     [bool]ReadOnly
+     [bool]CustomFile
 .RETURNVALUE
      $downloadresult
      $errCode
@@ -23,7 +25,8 @@
 Param(
     [Parameter(Mandatory = $true)]          
     [String]$Auftragsnummer,
-    [bool]$ReadOnly = $false
+    [bool]$ReadOnly = $false,
+    [bool]$CustomFile = $false
 )
 
 class DownloadInfo {
@@ -79,20 +82,23 @@ function LogOut {
     exit
 }
 # Auftragsnummervalidierung
-if (($Auftragsnummer.Length -eq 6 -or $Auftragsnummer.Length -eq 7) -and $Auftragsnummer -match '^\d+$') {
-    $AuftragsTyp = "Auftrag"
+if (!$CustomFile) {
+    if (($Auftragsnummer.Length -eq 6 -or $Auftragsnummer.Length -eq 7) -and $Auftragsnummer -match '^\d+$') {
+        $AuftragsTyp = "Auftrag"
+    }
+    elseif ($Auftragsnummer -match '[0-9]{2}[-]0[1-9]|1[0-2][-][0-9]{4}') {
+        $AuftragsTyp = "Angebot"
+    }
+    elseif ($Auftragsnummer -match 'VP[-][0-9]{2}[-][0-9]{4}') {
+        $AuftragsTyp = "Vorplanung"
+    }
+    else {
+        $errCode = 6 #Invalide Auftrags bzw. Angebotsnummer
+        $downloadresult.Success = $false
+        LogOut($downloadresult)
+    }
 }
-elseif ($Auftragsnummer -match '[0-9]{2}[-]0[1-9]|1[0-2][-][0-9]{4}') {
-    $AuftragsTyp = "Angebot"
-}
-elseif ($Auftragsnummer -match 'VP[-][0-9]{2}[-][0-9]{4}') {
-    $AuftragsTyp = "Vorplanung"
-}
-else {
-    $errCode = 6 #Invalide Auftrags bzw. Angebotsnummer
-    $downloadresult.Success = $false
-    LogOut($downloadresult)
-}
+
 # Vault Login
 if ($ReadOnly) {
     try {
@@ -153,32 +159,40 @@ try {
 
     #Dateinamen der benötigten Dateien
     $downloadFiles = @()
-    $downloadFiles += $Auftragsnummer + "-AutoDeskTransfer.xml"
-    $downloadFiles += $Auftragsnummer + "-Spezifikation.pdf"
-    $downloadFiles += $Auftragsnummer + "-LiftHistory.json"
-    $downloadFiles += $Auftragsnummer + ".html"
-    $downloadFiles += $Auftragsnummer + ".aus"
-    $downloadFiles += $Auftragsnummer + ".dat"
-    $downloadFiles += $Auftragsnummer + ".LILO"
-
+    if (!$CustomFile) {
+        $downloadFiles += $Auftragsnummer + "-AutoDeskTransfer.xml"
+        $downloadFiles += $Auftragsnummer + "-Spezifikation.pdf"
+        $downloadFiles += $Auftragsnummer + "-LiftHistory.json"
+        $downloadFiles += $Auftragsnummer + ".html"
+        $downloadFiles += $Auftragsnummer + ".aus"
+        $downloadFiles += $Auftragsnummer + ".dat"
+        $downloadFiles += $Auftragsnummer + ".LILO"
+    }
+    else {
+        $downloadFiles += $Auftragsnummer
+    }
 
     #Quellpfad ermitteln
     if ($ReadOnly) {
-        $seachFile = $Auftragsnummer + "-AutoDeskTransfer.xml"
+        If (!$CustomFile) {
+            $seachFile = $Auftragsnummer + "-AutoDeskTransfer.xml"
 
-        if ($AuftragsTyp -eq "Auftrag") {
-            $seachPath = "C:\Work\AUFTRÄGE NEU\\Konstruktion"
-        }
-        elseif ($AuftragsTyp -eq "Angebot" -or $AuftragsTyp -eq "Vorplanung" ) {
-            $seachPath = "C:\Work\AUFTRÄGE NEU\Angebote"
+            if ($AuftragsTyp -eq "Auftrag") {
+                $seachPath = "C:\Work\AUFTRÄGE NEU\\Konstruktion"
+            }
+            elseif ($AuftragsTyp -eq "Angebot" -or $AuftragsTyp -eq "Vorplanung" ) {
+                $seachPath = "C:\Work\AUFTRÄGE NEU\Angebote"
+            }
+            else {
+                $seachPath = "C:\Work\AUFTRÄGE NEU\"
+            }
         }
         else {
-            $seachPath = "C:\Work\AUFTRÄGE NEU\"
+            $seachFile = $Auftragsnummer
+            $seachPath = "C:\Work\"
         }
 
-        $seachFile = $Auftragsnummer + "-AutoDeskTransfer.xml"
-    
-        $foundFiles = Get-ChildItem -Path $seachPath -Recurse -Include $seachFile
+        $foundFiles = Get-ChildItem -Path $seachPath -Recurse -Include $seachFile -Attributes a
 
         if ($foundFiles.Count -eq 1) {
             
@@ -245,7 +259,7 @@ try {
                 LogOut($downloadresult) 
             }
             "File not found" {
-                if ($downloadFiles[$i] -match "-AutoDeskTransfer.xml") {
+                if ($downloadFiles[$i] -match "-AutoDeskTransfer.xml" -or $CustomFile) {
                     Write-Host "Datei wurde im Vault nicht gefunden. Überprüfen Sie Ihre Eingabe!"-ForegroundColor DarkRed
                     $downloadresult.Success = $false
                     $errCode = 7 # Datei in Vault nicht gefunden
@@ -253,7 +267,7 @@ try {
                 }
             }
             "CheckOut failed" {
-                if ($downloadFiles[$i] -match "-AutoDeskTransfer.xml") {
+                if ($downloadFiles[$i] -match "-AutoDeskTransfer.xml" -or $CustomFile) {
                     $vaultFile = $VltHelpers.GetFileBySearchCriteria($connection, $SearchCriteria, $true, $false)
                     if (($null -ne $vaultFile) -and ($vaultFile -ne "File not found")) {
                         $vaultFiles += $vaultFile
@@ -313,7 +327,7 @@ try {
         $WorkFolderPath = $vaultFiles[0] -replace $downloadFiles[0], ""
     }
     #Verzeichnissstruktur anlegen
-    if ($WorkFolderPath.StartsWith("C:\Work\AUFTRÄGE NEU")) {
+    if ($WorkFolderPath.StartsWith("C:\Work\AUFTRÄGE NEU") -and !$CustomFile) {
         if (!(Test-Path $WorkFolderPath"Berechnungen")) { New-Item -Path $WorkFolderPath"Berechnungen" -ItemType Directory }
         if (!(Test-Path $WorkFolderPath"Berechnungen/PDF")) { New-Item -Path $WorkFolderPath"Berechnungen/PDF" -ItemType Directory }
         if (!(Test-Path $WorkFolderPath"Bestellungen")) { New-Item -Path $WorkFolderPath"Bestellungen" -ItemType Directory }

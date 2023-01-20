@@ -6,9 +6,10 @@
      File Name : UndoVaultFile.ps1
      Author : Buchholz Roland – roland.buchholz@berchtenbreiter-gmbh.de
 .VERSION
-     Version 1.00 – Vault 2023 support
+     Version 1.10 – add custom filedownload
 .EXAMPLE
-     Beispiel wie das Script aufgerufen wird > UndoVaultFile.ps1 -Auftragsnummer „8951234“
+     Beispiel wie das Script aufgerufen wird > UndoVaultFile.ps1 -Auftragsnummer 8951234 $true
+                                                                    (Auftragsnummer)(CustomFile optional)  
 .INPUTTYPE
      Auftragsnummer 
 .RETURNVALUE
@@ -18,10 +19,10 @@
      Vault Server
 #>
 
-       
 Param(
     [Parameter(Mandatory = $true)]          
-    [String]$Auftragsnummer
+    [String]$Auftragsnummer,
+    [bool]$CustomFile = $false
 )
 
 class DownloadInfo {
@@ -77,19 +78,21 @@ function LogOut {
     exit
 }
 # Auftragsnummervalidierung
-if (($Auftragsnummer.Length -eq 6 -or $Auftragsnummer.Length -eq 7) -and $Auftragsnummer -match '^\d+$') {
-    $AuftragsTyp = "Auftrag"
-}
-elseif ($Auftragsnummer -match '[0-9]{2}[-]0[1-9]|1[0-2][-][0-9]{4}') {
-    $AuftragsTyp = "Angebot"
-}
-elseif ($Auftragsnummer -match 'VP[-][0-9]{2}[-][0-9]{4}') {
-    $AuftragsTyp = "Vorplanung"
-}
-else {
-    $errCode = 6 #Invalide Auftrags bzw. Angebotsnummer
-    $downloadresult.Success = $false
-    LogOut($downloadresult)
+if (!$CustomFile) {
+    if (($Auftragsnummer.Length -eq 6 -or $Auftragsnummer.Length -eq 7) -and $Auftragsnummer -match '^\d+$') {
+        $AuftragsTyp = "Auftrag"
+    }
+    elseif ($Auftragsnummer -match '[0-9]{2}[-]0[1-9]|1[0-2][-][0-9]{4}') {
+        $AuftragsTyp = "Angebot"
+    }
+    elseif ($Auftragsnummer -match 'VP[-][0-9]{2}[-][0-9]{4}') {
+        $AuftragsTyp = "Vorplanung"
+    }
+    else {
+        $errCode = 6 #Invalide Auftrags bzw. Angebotsnummer
+        $downloadresult.Success = $false
+        LogOut($downloadresult)
+    }
 }
 # Vault Login
 
@@ -128,19 +131,26 @@ catch {
 try {
 
     #Quellpfad ermitteln
-    $seachFile = $Auftragsnummer + "-AutoDeskTransfer.xml"
+    If (!$CustomFile) {
+        $seachFile = $Auftragsnummer + "-AutoDeskTransfer.xml"
 
-    if ($AuftragsTyp -eq "Auftrag") {
-        $seachPath = "C:\Work\AUFTRÄGE NEU\\Konstruktion"
-    }
-    elseif ($AuftragsTyp -eq "Angebot" -or $AuftragsTyp -eq "Vorplanung" ) {
-        $seachPath = "C:\Work\AUFTRÄGE NEU\Angebote"
+        if ($AuftragsTyp -eq "Auftrag") {
+            $seachPath = "C:\Work\AUFTRÄGE NEU\\Konstruktion"
+        }
+        elseif ($AuftragsTyp -eq "Angebot" -or $AuftragsTyp -eq "Vorplanung" ) {
+            $seachPath = "C:\Work\AUFTRÄGE NEU\Angebote"
+        }
+        else {
+            $seachPath = "C:\Work\AUFTRÄGE NEU\"
+        }
     }
     else {
-        $seachPath = "C:\Work\AUFTRÄGE NEU\"
+        $seachFile = $Auftragsnummer
+        $seachPath = "C:\Work\"
     }
     
-    $sourceFile = Get-ChildItem -Path $seachPath -Recurse -Include $seachFile
+
+    $sourceFile = Get-ChildItem -Path $seachPath -Recurse -Include $seachFile -Attributes a
     if ($null -eq $sourceFile) {
         Write-Host "AutoDeskTransferXml im Arbeitsbereich nicht gefunden."-ForegroundColor DarkRed
         $errCode = "7" # Datei im Arbeitsbereich nicht gefunden
@@ -185,17 +195,20 @@ try {
 
         $vault = $connection.WebServiceManager
         $vaultPathAutodesktransferXml = $VltHelpers.ConvertLocalPathToVaultPath($connection, $FileStatus["FullFileName"])
-        $BerechnungenPath = $vaultPathAutodesktransferXml + "/Berechnungen/"
+
 
         #Dateinamen der benötigten Dateien
         $undoFiles = @()
         $undoFiles += $vaultPathAutodesktransferXml + "/" + $FileStatus["FileName"]
-        $undoFiles += $vaultPathAutodesktransferXml + "/" + $Auftragsnummer + "-Spezifikation.pdf"
-        $undoFiles += $vaultPathAutodesktransferXml + "/" + $Auftragsnummer + "-LiftHistory.json"
-        $undoFiles += $BerechnungenPath + $Auftragsnummer + ".html"
-        $undoFiles += $BerechnungenPath + $Auftragsnummer + ".aus"
-        $undoFiles += $BerechnungenPath + $Auftragsnummer + ".dat"
-        $undoFiles += $BerechnungenPath + $Auftragsnummer + ".LILO"
+        if (!$CustomFile) {
+            $BerechnungenPath = $vaultPathAutodesktransferXml + "/Berechnungen/"
+            $undoFiles += $vaultPathAutodesktransferXml + "/" + $Auftragsnummer + "-Spezifikation.pdf"
+            $undoFiles += $vaultPathAutodesktransferXml + "/" + $Auftragsnummer + "-LiftHistory.json"
+            $undoFiles += $BerechnungenPath + $Auftragsnummer + ".html"
+            $undoFiles += $BerechnungenPath + $Auftragsnummer + ".aus"
+            $undoFiles += $BerechnungenPath + $Auftragsnummer + ".dat"
+            $undoFiles += $BerechnungenPath + $Auftragsnummer + ".LILO"
+        }
 
         $vaultFoundUndoFiles = $vault.DocumentService.FindLatestFilesByPaths($undoFiles)
 

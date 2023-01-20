@@ -6,9 +6,10 @@
      File Name : SetVaultFile.ps1
      Author : Buchholz Roland – roland.buchholz@berchtenbreiter-gmbh.de
 .VERSION
-       Version 1.00 – Vault 2023 support
+       Version 1.10 – add custom filedownload
 .EXAMPLE
-     Beispiel wie das Script aufgerufen wird > SetVaultFile.ps1 -Auftragsnummer „8951234“
+     Beispiel wie das Script aufgerufen wird > SetVaultFile.ps1 -Auftragsnummer 8951234 $true
+                                                                            (Auftragsnummer)(CustomFile optional)  
 .INPUTTYPE
      Auftragsnummer 
 .RETURNVALUE
@@ -21,8 +22,11 @@
       
 Param(
     [Parameter(Mandatory = $true)]          
-    [String]$Auftragsnummer
+    [String]$Auftragsnummer,
+    [bool]$CustomFile = $false
 )
+
+$CustomFile = $true
 
 class DownloadInfo {
     [bool]$Success = $null
@@ -77,19 +81,21 @@ function LogOut {
     exit
 }
 # Auftragsnummervalidierung
-if (($Auftragsnummer.Length -eq 6 -or $Auftragsnummer.Length -eq 7) -and $Auftragsnummer -match '^\d+$') {
-    $AuftragsTyp = "Auftrag"
-}
-elseif ($Auftragsnummer -match '[0-9]{2}[-]0[1-9]|1[0-2][-][0-9]{4}') {
-    $AuftragsTyp = "Angebot"
-}
-elseif ($Auftragsnummer -match 'VP[-][0-9]{2}[-][0-9]{4}') {
-    $AuftragsTyp = "Vorplanung"
-}
-else {
-    $errCode = 6 #Invalide Auftrags bzw. Angebotsnummer
-    $downloadresult.Success = $false
-    LogOut($downloadresult)
+if (!$CustomFile) {
+    if (($Auftragsnummer.Length -eq 6 -or $Auftragsnummer.Length -eq 7) -and $Auftragsnummer -match '^\d+$') {
+        $AuftragsTyp = "Auftrag"
+    }
+    elseif ($Auftragsnummer -match '[0-9]{2}[-]0[1-9]|1[0-2][-][0-9]{4}') {
+        $AuftragsTyp = "Angebot"
+    }
+    elseif ($Auftragsnummer -match 'VP[-][0-9]{2}[-][0-9]{4}') {
+        $AuftragsTyp = "Vorplanung"
+    }
+    else {
+        $errCode = 6 #Invalide Auftrags bzw. Angebotsnummer
+        $downloadresult.Success = $false
+        LogOut($downloadresult)
+    }
 }
 # Vault Login
 
@@ -127,19 +133,25 @@ catch {
 
 try {
     #Quellpfad ermitteln
-    $seachFile = $Auftragsnummer + "-AutoDeskTransfer.xml"
+    If (!$CustomFile) {
+        $seachFile = $Auftragsnummer + "-AutoDeskTransfer.xml"
 
-    if ($AuftragsTyp -eq "Auftrag") {
-        $seachPath = "C:\Work\AUFTRÄGE NEU\\Konstruktion"
-    }
-    elseif ($AuftragsTyp -eq "Angebot" -or $AuftragsTyp -eq "Vorplanung" ) {
-        $seachPath = "C:\Work\AUFTRÄGE NEU\Angebote"
+        if ($AuftragsTyp -eq "Auftrag") {
+            $seachPath = "C:\Work\AUFTRÄGE NEU\\Konstruktion"
+        }
+        elseif ($AuftragsTyp -eq "Angebot" -or $AuftragsTyp -eq "Vorplanung" ) {
+            $seachPath = "C:\Work\AUFTRÄGE NEU\Angebote"
+        }
+        else {
+            $seachPath = "C:\Work\AUFTRÄGE NEU\"
+        }
     }
     else {
-        $seachPath = "C:\Work\AUFTRÄGE NEU\"
+        $seachFile = $Auftragsnummer
+        $seachPath = "C:\Work\"
     }
     
-    $sourceFile = Get-ChildItem -Path $seachPath -Recurse -Include $seachFile
+    $sourceFile = Get-ChildItem -Path $seachPath -Recurse -Include $seachFile -Attributes a
     if ($null -eq $sourceFile) {
         Write-Host "AutoDeskTransferXml im Arbeitsbereich nicht gefunden."-ForegroundColor DarkRed
         $errCode = 7 # Datei im Arbeitsbereich nicht gefunden
@@ -172,26 +184,30 @@ try {
     $targetPath = $VltHelpers.ConvertLocalPathToVaultPath($connection, $sourceFile)
     #Dateinamen der einzucheckenden
 
-    $pathExtBerechnungen = "Berechnungen/"
-    $pathExtBerechnungenPDF = "Berechnungen/PDF/"
-    $pathExtCAD = "Bgr00/CAD-CFP/"
-    $pathExtTUEVZertifikate = "Montage-TÜV-Dokumentation/TÜV/Zertifikate/"
-
     $uploadFiles = @()
-    $uploadFiles += $Auftragsnummer + "-AutoDeskTransfer.xml"
-    if (Test-Path ($sourcePath + $Auftragsnummer + "-Spezifikation.pdf")) { $uploadFiles += $Auftragsnummer + "-Spezifikation.pdf" }
-    if (Test-Path ($sourcePath + $Auftragsnummer + "-LiftHistory.json")) { $uploadFiles += $Auftragsnummer + "-LiftHistory.json" }
-    if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + ".html")) { $uploadFiles += $pathExtBerechnungen + $Auftragsnummer + ".html" }
-    if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + ".aus")) { $uploadFiles += $pathExtBerechnungen + $Auftragsnummer + ".aus" }
-    if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + ".dat")) { $uploadFiles += $pathExtBerechnungen + $Auftragsnummer + ".dat" }
-    if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + ".LILO")) { $uploadFiles += $pathExtBerechnungen + $Auftragsnummer + ".LILO" }
-    if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + "-Jupiter.txt")) { $uploadFiles += $pathExtBerechnungen + $Auftragsnummer + "-Jupiter.txt" }
-    if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + "-Pluto.txt")) { $uploadFiles += $pathExtBerechnungen + $Auftragsnummer + "-Pluto.txt" }
-    if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + "-Beripac.txt")) { $uploadFiles += $pathExtBerechnungen + $Auftragsnummer + "-Beripac.txt" }
-    if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + "-Pluto-Seil.txt")) { $uploadFiles += $pathExtBerechnungen + $Auftragsnummer + "-Pluto-Seil.txt" }
-    if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + "-ZZE-S.txt")) { $uploadFiles += $pathExtBerechnungen + $Auftragsnummer + "-ZZE-S.txt" }
-    if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + "-G.txt")) { $uploadFiles += $pathExtBerechnungen + $Auftragsnummer + "-G.txt" }
-    
+    if (!$CustomFile) {
+        $uploadFiles += $Auftragsnummer + "-AutoDeskTransfer.xml"
+        $pathExtBerechnungen = "Berechnungen/"
+        $pathExtBerechnungenPDF = "Berechnungen/PDF/"
+        $pathExtCAD = "Bgr00/CAD-CFP/"
+        $pathExtTUEVZertifikate = "Montage-TÜV-Dokumentation/TÜV/Zertifikate/"
+        if (Test-Path ($sourcePath + $Auftragsnummer + "-Spezifikation.pdf")) { $uploadFiles += $Auftragsnummer + "-Spezifikation.pdf" }
+        if (Test-Path ($sourcePath + $Auftragsnummer + "-LiftHistory.json")) { $uploadFiles += $Auftragsnummer + "-LiftHistory.json" }
+        if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + ".html")) { $uploadFiles += $pathExtBerechnungen + $Auftragsnummer + ".html" }
+        if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + ".aus")) { $uploadFiles += $pathExtBerechnungen + $Auftragsnummer + ".aus" }
+        if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + ".dat")) { $uploadFiles += $pathExtBerechnungen + $Auftragsnummer + ".dat" }
+        if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + ".LILO")) { $uploadFiles += $pathExtBerechnungen + $Auftragsnummer + ".LILO" }
+        if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + "-Jupiter.txt")) { $uploadFiles += $pathExtBerechnungen + $Auftragsnummer + "-Jupiter.txt" }
+        if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + "-Pluto.txt")) { $uploadFiles += $pathExtBerechnungen + $Auftragsnummer + "-Pluto.txt" }
+        if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + "-Beripac.txt")) { $uploadFiles += $pathExtBerechnungen + $Auftragsnummer + "-Beripac.txt" }
+        if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + "-Pluto-Seil.txt")) { $uploadFiles += $pathExtBerechnungen + $Auftragsnummer + "-Pluto-Seil.txt" }
+        if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + "-ZZE-S.txt")) { $uploadFiles += $pathExtBerechnungen + $Auftragsnummer + "-ZZE-S.txt" }
+        if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + "-G.txt")) { $uploadFiles += $pathExtBerechnungen + $Auftragsnummer + "-G.txt" }
+    }
+    else {
+        $uploadFiles += $Auftragsnummer
+    }
+
     #FileCheck CheckedOutLinkedFilesByOtherUser
     foreach ($uploadFile in $uploadFiles) {
         #FileStatus auslesen
@@ -213,111 +229,111 @@ try {
             LogOut($downloadresult)
         }
     }
-
-    if (Test-Path ($sourcePath + $pathExtBerechnungenPDF)) { $berechnungenPDFFiles = Get-ChildItem -Path ($sourcePath + $pathExtBerechnungenPDF) -Filter  *.pdf }
-    if (Test-Path ($sourcePath + $pathExtCAD)) { $cadFiles = Get-ChildItem -Path ($sourcePath + $pathExtCAD) -Filter  *.dwg }
-    if (Test-Path ($sourcePath + $pathExtTUEVZertifikate)) { $zertifikateFiles = Get-ChildItem -Path ($sourcePath + $pathExtTUEVZertifikate) -Filter  *.pdf }
+    if (!$CustomFile) {
+        if (Test-Path ($sourcePath + $pathExtBerechnungenPDF)) { $berechnungenPDFFiles = Get-ChildItem -Path ($sourcePath + $pathExtBerechnungenPDF) -Filter  *.pdf }
+        if (Test-Path ($sourcePath + $pathExtCAD)) { $cadFiles = Get-ChildItem -Path ($sourcePath + $pathExtCAD) -Filter  *.dwg }
+        if (Test-Path ($sourcePath + $pathExtTUEVZertifikate)) { $zertifikateFiles = Get-ChildItem -Path ($sourcePath + $pathExtTUEVZertifikate) -Filter  *.pdf }
  
-    foreach ($berechnungensPDF in $berechnungenPDFFiles) {
-        $uploadFiles += $pathExtBerechnungenPDF + $berechnungensPDF
-    }
+        foreach ($berechnungensPDF in $berechnungenPDFFiles) {
+            $uploadFiles += $pathExtBerechnungenPDF + $berechnungensPDF
+        }
 
-    foreach ($cadFile in $cadFiles) {
-        $uploadFiles += $pathExtCAD + $cadFile
-    }
+        foreach ($cadFile in $cadFiles) {
+            $uploadFiles += $pathExtCAD + $cadFile
+        }
 
-    foreach ($zertifikateFile in $zertifikateFiles) {
-        $uploadFiles += $pathExtTUEVZertifikate + $zertifikateFile
-    }
+        foreach ($zertifikateFile in $zertifikateFiles) {
+            $uploadFiles += $pathExtTUEVZertifikate + $zertifikateFile
+        }
     
-    #Prüfen ob Verzeichnisstruktur im Vault vorhanden ist
-    $vaultPaths = @()
-    $vaultPaths += ($targetPath + "/" + $pathExtBerechnungen).TrimEnd("/")
-    if ($berechnungenPDFFiles.Count -gt 0) {
-        $vaultPaths += ($targetPath + "/" + $pathExtBerechnungenPDF).TrimEnd("/")
-    }
-    if ($cadFiles.Count -gt 0) {
-        $vaultPaths += ($targetPath + "/" + $pathExtCAD).TrimEnd("/CAD-CFP/")
-        $vaultPaths += ($targetPath + "/" + $pathExtCAD).TrimEnd("/")
-    }
-    if ($zertifikateFiles.Count -gt 0) {
-        $vaultPaths += ($targetPath + "/" + $pathExtTUEVZertifikate).TrimEnd("/TÜV/Zertifikate/")
-        $vaultPaths += ($targetPath + "/" + $pathExtTUEVZertifikate).TrimEnd("/Zertifikate/")
-        $vaultPaths += ($targetPath + "/" + $pathExtTUEVZertifikate).TrimEnd("/")
-    }
-
-    foreach ($vaultPath in $vaultPaths) {
-        $mFolder = $vault.DocumentService.FindFoldersByPaths($vaultPath)[0]
-
-        if ($mFolder.Id -eq -1) {
-            try {
-                $mFolderName = $vaultPath.Split("/")[-1]
-                $mFolderparentId = $vault.DocumentService.FindFoldersByPaths(($vaultPath).TrimEnd("/" + $mFolderName))[0].Id
-                $vault.DocumentService.AddFolder($mFolderName, $mFolderparentId, $false)
-            }
-            catch {
-                Write-Host  $vaultPath " konnte nicht erstellt werden"-ForegroundColor DarkRed
-            }
-        }
-    }
-
-    #Prüfen ob Daten zum Upload vorhanden sind 
-    if ($berechnungenPDFFiles -match 'Anlagedaten' -or 
-        $berechnungenPDFFiles -match 'Lift data' -or 
-        $berechnungenPDFFiles -match 'Données techniques de l´installation' ) {
-        
-        #Daten im Vault löschen
-        $toDeleteVaultFiles = @()
-
-        $propDefs = $vault.PropertyService.GetPropertyDefinitionsByEntityClassId("FILE")
-        $custPropDefIds = $propDefs | Where-Object { $_.IsSys -eq $false } | Select-Object -ExpandProperty Id
-
+        #Prüfen ob Verzeichnisstruktur im Vault vorhanden ist
+        $vaultPaths = @()
+        $vaultPaths += ($targetPath + "/" + $pathExtBerechnungen).TrimEnd("/")
         if ($berechnungenPDFFiles.Count -gt 0) {
-            $vaultPathBerechnungen = ($targetPath + "/" + $pathExtBerechnungenPDF).TrimEnd("/")
-            $vaultFolderBerechnungen = $vault.DocumentService.GetFolderByPath($vaultPathBerechnungen)
-            $files = $vault.DocumentService.GetLatestFilesByFolderId($vaultFolderBerechnungen.Id, $true)
-            foreach ($file in $files) {
-                if ($file.Cat.CatName -eq "Office" -and $file.Name.EndsWith(".pdf")) {
-
-                    $props = $vault.PropertyService.GetPropertiesByEntityIds("FILE", @($file.Id))
-                    $custProps = $props | Where-Object { $custPropDefIds -contains $_.PropDefId }
-
-                    if ((($custProps | Where-Object { $_.PropDefId -eq 26 }).Val -eq "Berechnungen") -and (($custProps | Where-Object { $_.PropDefId -eq 104 }).Val -eq "CFP")) {
-                        $toDeleteVaultFiles += $file
-                    }  
-                }
-            } 
+            $vaultPaths += ($targetPath + "/" + $pathExtBerechnungenPDF).TrimEnd("/")
         }
-
+        if ($cadFiles.Count -gt 0) {
+            $vaultPaths += ($targetPath + "/" + $pathExtCAD).TrimEnd("/CAD-CFP/")
+            $vaultPaths += ($targetPath + "/" + $pathExtCAD).TrimEnd("/")
+        }
         if ($zertifikateFiles.Count -gt 0) {
-            $vaultPathTUEVZertifikate = ($targetPath + "/" + $pathExtTUEVZertifikate).TrimEnd("/")
-            $vaultFolderTUEVZertifikate = $vault.DocumentService.GetFolderByPath($vaultPathTUEVZertifikate)
-            $files = $vault.DocumentService.GetLatestFilesByFolderId($vaultFolderTUEVZertifikate.Id, $true)
-            foreach ($file in $files) {
-                if ($file.Cat.CatName -eq "Office" -and $file.Name.EndsWith(".pdf")) {
-
-                    $props = $vault.PropertyService.GetPropertiesByEntityIds("FILE", @($file.Id))
-                    $custProps = $props | Where-Object { $custPropDefIds -contains $_.PropDefId }
-
-                    if (($custProps | Where-Object { $_.PropDefId -eq 104 }).Val -eq "CFP") {
-                        $toDeleteVaultFiles += $file
-                    }  
-                }
-            } 
+            $vaultPaths += ($targetPath + "/" + $pathExtTUEVZertifikate).TrimEnd("/TÜV/Zertifikate/")
+            $vaultPaths += ($targetPath + "/" + $pathExtTUEVZertifikate).TrimEnd("/Zertifikate/")
+            $vaultPaths += ($targetPath + "/" + $pathExtTUEVZertifikate).TrimEnd("/")
         }
 
-        foreach ($toDeleteVaultFile in $toDeleteVaultFiles) {
-            try {
-                $toDeleteFolder = $vault.DocumentService.GetFoldersByFileMasterId($toDeleteVaultFile.MasterId)
-                $vault.DocumentService.DeleteFileFromFolderUnconditional( $toDeleteVaultFile.MasterId , $toDeleteFolder[0].Id)
-                Write-Host  $toDeleteVaultFile.Name  "gelöscht..."-ForegroundColor Yellow
+        foreach ($vaultPath in $vaultPaths) {
+            $mFolder = $vault.DocumentService.FindFoldersByPaths($vaultPath)[0]
+
+            if ($mFolder.Id -eq -1) {
+                try {
+                    $mFolderName = $vaultPath.Split("/")[-1]
+                    $mFolderparentId = $vault.DocumentService.FindFoldersByPaths(($vaultPath).TrimEnd("/" + $mFolderName))[0].Id
+                    $vault.DocumentService.AddFolder($mFolderName, $mFolderparentId, $false)
+                }
+                catch {
+                    Write-Host  $vaultPath " konnte nicht erstellt werden"-ForegroundColor DarkRed
+                }
             }
-            catch { 
-                Write-Host  $toDeleteVaultFile.Name "nicht gelöscht,keine Rechte zum Löschen..."-ForegroundColor DarkRed
+        }
+
+        #Prüfen ob Daten zum Upload vorhanden sind 
+        if ($berechnungenPDFFiles -match 'Anlagedaten' -or 
+            $berechnungenPDFFiles -match 'Lift data' -or 
+            $berechnungenPDFFiles -match 'Données techniques de l´installation' ) {
+        
+            #Daten im Vault löschen
+            $toDeleteVaultFiles = @()
+
+            $propDefs = $vault.PropertyService.GetPropertyDefinitionsByEntityClassId("FILE")
+            $custPropDefIds = $propDefs | Where-Object { $_.IsSys -eq $false } | Select-Object -ExpandProperty Id
+
+            if ($berechnungenPDFFiles.Count -gt 0) {
+                $vaultPathBerechnungen = ($targetPath + "/" + $pathExtBerechnungenPDF).TrimEnd("/")
+                $vaultFolderBerechnungen = $vault.DocumentService.GetFolderByPath($vaultPathBerechnungen)
+                $files = $vault.DocumentService.GetLatestFilesByFolderId($vaultFolderBerechnungen.Id, $true)
+                foreach ($file in $files) {
+                    if ($file.Cat.CatName -eq "Office" -and $file.Name.EndsWith(".pdf")) {
+
+                        $props = $vault.PropertyService.GetPropertiesByEntityIds("FILE", @($file.Id))
+                        $custProps = $props | Where-Object { $custPropDefIds -contains $_.PropDefId }
+
+                        if ((($custProps | Where-Object { $_.PropDefId -eq 26 }).Val -eq "Berechnungen") -and (($custProps | Where-Object { $_.PropDefId -eq 104 }).Val -eq "CFP")) {
+                            $toDeleteVaultFiles += $file
+                        }  
+                    }
+                } 
+            }
+
+            if ($zertifikateFiles.Count -gt 0) {
+                $vaultPathTUEVZertifikate = ($targetPath + "/" + $pathExtTUEVZertifikate).TrimEnd("/")
+                $vaultFolderTUEVZertifikate = $vault.DocumentService.GetFolderByPath($vaultPathTUEVZertifikate)
+                $files = $vault.DocumentService.GetLatestFilesByFolderId($vaultFolderTUEVZertifikate.Id, $true)
+                foreach ($file in $files) {
+                    if ($file.Cat.CatName -eq "Office" -and $file.Name.EndsWith(".pdf")) {
+
+                        $props = $vault.PropertyService.GetPropertiesByEntityIds("FILE", @($file.Id))
+                        $custProps = $props | Where-Object { $custPropDefIds -contains $_.PropDefId }
+
+                        if (($custProps | Where-Object { $_.PropDefId -eq 104 }).Val -eq "CFP") {
+                            $toDeleteVaultFiles += $file
+                        }  
+                    }
+                } 
+            }
+
+            foreach ($toDeleteVaultFile in $toDeleteVaultFiles) {
+                try {
+                    $toDeleteFolder = $vault.DocumentService.GetFoldersByFileMasterId($toDeleteVaultFile.MasterId)
+                    $vault.DocumentService.DeleteFileFromFolderUnconditional( $toDeleteVaultFile.MasterId , $toDeleteFolder[0].Id)
+                    Write-Host  $toDeleteVaultFile.Name  "gelöscht..."-ForegroundColor Yellow
+                }
+                catch { 
+                    Write-Host  $toDeleteVaultFile.Name "nicht gelöscht,keine Rechte zum Löschen..."-ForegroundColor DarkRed
+                }
             }
         }
     }
-
     #Dateien hochladen und aktualisieren
     for ($i = 0; $i -le $uploadFiles.Count - 1; $i++) {
         $verfasser = $Env:USERNAME
@@ -334,7 +350,7 @@ try {
 
         $uploadFileResult = $VltHelpers.AddFile($connection, $uploadSource, $uploadTargetPath, $true)
     
-        if ($uploadFileResult) {
+        if ($uploadFileResult -and !$CustomFile) {
             $uploadFile = ($vault.DocumentService.FindLatestFilesByPaths($uploadTarget))[0]
             $Beschreibung = $uploadFile.Name.TrimStart($Auftragsnummer + "-")
 
@@ -541,140 +557,140 @@ catch {
 }
 
 try {
+    if (!$CustomFile) {
+        #XML-Datei ermitteln und auslesen
+        $pfadxml = $sourceFile.FullName
 
-    #XML-Datei ermitteln und auslesen
-    $pfadxml = $sourceFile.FullName
+        $xml = [XML] (Get-Content -Path $pfadxml -Encoding UTF8)
 
-    $xml = [XML] (Get-Content -Path $pfadxml -Encoding UTF8)
+        $parameter = $xml.selectNodes("//ParamWithValue")
 
-    $parameter = $xml.selectNodes("//ParamWithValue")
+        $var_FabrikNummer = $parameter | Where-Object { $_.name -eq "var_FabrikNummer" }
+        $var_Kennwort = $parameter | Where-Object { $_.name -eq "var_Kennwort" }
+        $var_Projekt = $parameter | Where-Object { $_.name -eq "var_Projekt" }                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        
+        $var_Betreiber = $parameter | Where-Object { $_.name -eq "var_Betreiber" }                                                                                                                                                  
+        $var_Q = $parameter | Where-Object { $_.name -eq "var_Q" }
+        $var_F = $parameter | Where-Object { $_.name -eq "var_F" }
+        $var_Personen = $parameter | Where-Object { $_.name -eq "var_Personen" }
+        $var_v = $parameter | Where-Object { $_.name -eq "var_v" } 
+        $var_FH = $parameter | Where-Object { $_.name -eq "var_FH" }
+        $var_SB = $parameter | Where-Object { $_.name -eq "var_SB" }
+        $var_ST = $parameter | Where-Object { $_.name -eq "var_ST" }
+        $var_SG = $parameter | Where-Object { $_.name -eq "var_SG" }
+        $var_SK = $parameter | Where-Object { $_.name -eq "var_SK" }
+        $var_KBI = $parameter | Where-Object { $_.name -eq "var_KBI" }
+        $var_KTI = $parameter | Where-Object { $_.name -eq "var_KTI" }
+        $var_KHLicht = $parameter | Where-Object { $_.name -eq "var_KHLicht" }
+        $var_A_Kabine = $parameter | Where-Object { $_.name -eq "var_A_Kabine" }
+        $var_Kommentare = $parameter | Where-Object { $_.name -eq "var_Kommentare" }
 
-    $var_FabrikNummer = $parameter | Where-Object { $_.name -eq "var_FabrikNummer" }
-    $var_Kennwort = $parameter | Where-Object { $_.name -eq "var_Kennwort" }
-    $var_Projekt = $parameter | Where-Object { $_.name -eq "var_Projekt" }                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        
-    $var_Betreiber = $parameter | Where-Object { $_.name -eq "var_Betreiber" }                                                                                                                                                  
-    $var_Q = $parameter | Where-Object { $_.name -eq "var_Q" }
-    $var_F = $parameter | Where-Object { $_.name -eq "var_F" }
-    $var_Personen = $parameter | Where-Object { $_.name -eq "var_Personen" }
-    $var_v = $parameter | Where-Object { $_.name -eq "var_v" } 
-    $var_FH = $parameter | Where-Object { $_.name -eq "var_FH" }
-    $var_SB = $parameter | Where-Object { $_.name -eq "var_SB" }
-    $var_ST = $parameter | Where-Object { $_.name -eq "var_ST" }
-    $var_SG = $parameter | Where-Object { $_.name -eq "var_SG" }
-    $var_SK = $parameter | Where-Object { $_.name -eq "var_SK" }
-    $var_KBI = $parameter | Where-Object { $_.name -eq "var_KBI" }
-    $var_KTI = $parameter | Where-Object { $_.name -eq "var_KTI" }
-    $var_KHLicht = $parameter | Where-Object { $_.name -eq "var_KHLicht" }
-    $var_A_Kabine = $parameter | Where-Object { $_.name -eq "var_A_Kabine" }
-    $var_Kommentare = $parameter | Where-Object { $_.name -eq "var_Kommentare" }
+        #Ordnereigenschaften ermitteln und auslesen
 
-    #Ordnereigenschaften ermitteln und auslesen
+        $folder = $vault.DocumentService.GetFolderByPath($targetPath)
+        $propDefs = $vault.PropertyService.GetPropertyDefinitionsByEntityClassId("FLDR")
 
-    $folder = $vault.DocumentService.GetFolderByPath($targetPath)
-    $propDefs = $vault.PropertyService.GetPropertyDefinitionsByEntityClassId("FLDR")
+        $folderProps = $vault.PropertyService.GetPropertiesByEntityIds("FLDR", @($folder.Id))
 
-    $folderProps = $vault.PropertyService.GetPropertiesByEntityIds("FLDR", @($folder.Id))
+        $udpIds = $propDefs | Where-Object { $_.IsSys -eq $false } | Select-Object -ExpandProperty Id
+        $folderProps = $folderProps | Where-Object { $_.Propdefid -in $udpIds }
 
-    $udpIds = $propDefs | Where-Object { $_.IsSys -eq $false } | Select-Object -ExpandProperty Id
-    $folderProps = $folderProps | Where-Object { $_.Propdefid -in $udpIds }
+        $fabriknummer = $folderProps | Where-Object { $_.PropDefId -eq "124" }
+        $projektTitel = $folderProps | Where-Object { $_.PropDefId -eq "27" }
+        $aufstellungsort = $folderProps | Where-Object { $_.PropDefId -eq "145" }
+        $betreiber = $folderProps | Where-Object { $_.PropDefId -eq "144" }
+        $nutzlast = $folderProps | Where-Object { $_.PropDefId -eq "132" }
+        $fahrkorbgewicht = $folderProps | Where-Object { $_.PropDefId -eq "133" }
+        $nenngeschwingigkeit = $folderProps | Where-Object { $_.PropDefId -eq "131" }
+        $personenAnzahl = $folderProps | Where-Object { $_.PropDefId -eq "139" }
+        $schachtbreite = $folderProps | Where-Object { $_.PropDefId -eq "137" }
+        $schachttiefe = $folderProps | Where-Object { $_.PropDefId -eq "138" }
+        $schachtgrube = $folderProps | Where-Object { $_.PropDefId -eq "135" }
+        $schachtkopf = $folderProps | Where-Object { $_.PropDefId -eq "136" }
+        $foerderhoehe = $folderProps | Where-Object { $_.PropDefId -eq "134" }
+        $kabinenbreite = $folderProps | Where-Object { $_.PropDefId -eq "140" }
+        $kabinentiefe = $folderProps | Where-Object { $_.PropDefId -eq "141" }
+        $kabinenhoehe = $folderProps | Where-Object { $_.PropDefId -eq "142" }
+        $kabinenflaeche = $folderProps | Where-Object { $_.PropDefId -eq "143" }
+        $kommentare = $folderProps | Where-Object { $_.PropDefId -eq "24" }
 
-    $fabriknummer = $folderProps | Where-Object { $_.PropDefId -eq "124" }
-    $projektTitel = $folderProps | Where-Object { $_.PropDefId -eq "27" }
-    $aufstellungsort = $folderProps | Where-Object { $_.PropDefId -eq "145" }
-    $betreiber = $folderProps | Where-Object { $_.PropDefId -eq "144" }
-    $nutzlast = $folderProps | Where-Object { $_.PropDefId -eq "132" }
-    $fahrkorbgewicht = $folderProps | Where-Object { $_.PropDefId -eq "133" }
-    $nenngeschwingigkeit = $folderProps | Where-Object { $_.PropDefId -eq "131" }
-    $personenAnzahl = $folderProps | Where-Object { $_.PropDefId -eq "139" }
-    $schachtbreite = $folderProps | Where-Object { $_.PropDefId -eq "137" }
-    $schachttiefe = $folderProps | Where-Object { $_.PropDefId -eq "138" }
-    $schachtgrube = $folderProps | Where-Object { $_.PropDefId -eq "135" }
-    $schachtkopf = $folderProps | Where-Object { $_.PropDefId -eq "136" }
-    $foerderhoehe = $folderProps | Where-Object { $_.PropDefId -eq "134" }
-    $kabinenbreite = $folderProps | Where-Object { $_.PropDefId -eq "140" }
-    $kabinentiefe = $folderProps | Where-Object { $_.PropDefId -eq "141" }
-    $kabinenhoehe = $folderProps | Where-Object { $_.PropDefId -eq "142" }
-    $kabinenflaeche = $folderProps | Where-Object { $_.PropDefId -eq "143" }
-    $kommentare = $folderProps | Where-Object { $_.PropDefId -eq "24" }
-
-    #Föderhöhe in Millimeter umwandeln
-    if ($null -ne $var_FH.value) {
-        $FHmm = [System.Convert]::ToDecimal($var_FH.value, [cultureinfo]::GetCultureInfo('de-DE')) * 1000
-        $var_FH.value = $FHmm.tostring()
-    }
+        #Föderhöhe in Millimeter umwandeln
+        if ($null -ne $var_FH.value) {
+            $FHmm = [System.Convert]::ToDecimal($var_FH.value, [cultureinfo]::GetCultureInfo('de-DE')) * 1000
+            $var_FH.value = $FHmm.tostring()
+        }
 
 
-    #Ordnereigenschaften schreiben und übermitteln
+        #Ordnereigenschaften schreiben und übermitteln
 
-    $fabriknummer.Val = $var_FabrikNummer.value
-    $projektTitel.Val = $var_Kennwort.value
-    $aufstellungsort.Val = $var_Projekt.value
-    $betreiber.Val = $var_Betreiber.value
-    $nutzlast.Val = $var_Q.value
-    $fahrkorbgewicht.Val = $var_F.value
-    $nenngeschwingigkeit.Val = $var_v.value
-    $personenAnzahl.Val = $var_Personen.value
-    $schachtbreite.Val = $var_SB.value
-    $schachttiefe.Val = $var_ST.value
-    $schachtgrube.Val = $var_SG.value
-    $schachtkopf.Val = $var_SK.value
-    $foerderhoehe.Val = $var_FH.value
-    $kabinenbreite.Val = $var_KBI.value
-    $kabinentiefe.Val = $var_KTI.value
-    $kabinenhoehe.Val = $var_KHLicht.value
-    $kommentare.Val = $var_Kommentare.value
-    if (-Not [string]::IsNullOrWhitespace($var_A_Kabine.value)) {
-        $kabinenflaeche.Val = $var_A_Kabine.value
-    }
+        $fabriknummer.Val = $var_FabrikNummer.value
+        $projektTitel.Val = $var_Kennwort.value
+        $aufstellungsort.Val = $var_Projekt.value
+        $betreiber.Val = $var_Betreiber.value
+        $nutzlast.Val = $var_Q.value
+        $fahrkorbgewicht.Val = $var_F.value
+        $nenngeschwingigkeit.Val = $var_v.value
+        $personenAnzahl.Val = $var_Personen.value
+        $schachtbreite.Val = $var_SB.value
+        $schachttiefe.Val = $var_ST.value
+        $schachtgrube.Val = $var_SG.value
+        $schachtkopf.Val = $var_SK.value
+        $foerderhoehe.Val = $var_FH.value
+        $kabinenbreite.Val = $var_KBI.value
+        $kabinentiefe.Val = $var_KTI.value
+        $kabinenhoehe.Val = $var_KHLicht.value
+        $kommentare.Val = $var_Kommentare.value
+        if (-Not [string]::IsNullOrWhitespace($var_A_Kabine.value)) {
+            $kabinenflaeche.Val = $var_A_Kabine.value
+        }
 
-    $propValues = New-Object Autodesk.Connectivity.WebServices.PropInstParamArray
-    $propValues.Items = New-Object Autodesk.Connectivity.WebServices.PropInstParam[] $folderProps.Count
-    $i = 0
-    foreach ($d in $folderProps.GetEnumerator()) {
-        $propValues.Items[$i] = New-Object Autodesk.Connectivity.WebServices.PropInstParam -Property @{PropDefId = $d.PropDefId; Val = $d.Val }
-        $i++
-    }
+        $propValues = New-Object Autodesk.Connectivity.WebServices.PropInstParamArray
+        $propValues.Items = New-Object Autodesk.Connectivity.WebServices.PropInstParam[] $folderProps.Count
+        $i = 0
+        foreach ($d in $folderProps.GetEnumerator()) {
+            $propValues.Items[$i] = New-Object Autodesk.Connectivity.WebServices.PropInstParam -Property @{PropDefId = $d.PropDefId; Val = $d.Val }
+            $i++
+        }
 
-    $vault.DocumentServiceExtensions.UpdateFolderProperties(@($folder.Id), @($propValues))
+        $vault.DocumentServiceExtensions.UpdateFolderProperties(@($folder.Id), @($propValues))
   
-    #Housekeeping
+        #Housekeeping
 
-    $workPathBerechnungenPDF = $sourcePath + $pathExtBerechnungenPDF
-    $workPathTUEVZertifikate = $sourcePath + $pathExtTUEVZertifikate
+        $workPathBerechnungenPDF = $sourcePath + $pathExtBerechnungenPDF
+        $workPathTUEVZertifikate = $sourcePath + $pathExtTUEVZertifikate
 
 
-    If (($workPathBerechnungenPDF -match "C:/Work/AUFTRÄGE NEU") -and ($workPathTUEVZertifikate -match "C:/Work/AUFTRÄGE NEU")) {
+        If (($workPathBerechnungenPDF -match "C:/Work/AUFTRÄGE NEU") -and ($workPathTUEVZertifikate -match "C:/Work/AUFTRÄGE NEU")) {
     
-        if (Test-Path ($workPathBerechnungenPDF)) { Remove-Item -Path $workPathBerechnungenPDF -Recurse -Force }
-        if (Test-Path ($workPathTUEVZertifikate)) { Remove-Item -Path $workPathTUEVZertifikate -Recurse -Force }
-    }
-
-    $deleteFiles = @()
-    $deleteFiles += $Auftragsnummer + "-AutoDeskTransfer.xml"
-    if (Test-Path ($sourcePath + $Auftragsnummer + "-Spezifikation.pdf")) { $deleteFiles += $Auftragsnummer + "-Spezifikation.pdf" }
-    if (Test-Path ($sourcePath + $Auftragsnummer + "-LiftHistory.json")) { $deleteFiles += $Auftragsnummer + "-LiftHistory.json" }
-    if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + ".html")) { $deleteFiles += $pathExtBerechnungen + $Auftragsnummer + ".html" }
-    if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + ".aus")) { $deleteFiles += $pathExtBerechnungen + $Auftragsnummer + ".aus" }
-    if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + ".dat")) { $deleteFiles += $pathExtBerechnungen + $Auftragsnummer + ".dat" }
-    if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + ".LILO")) { $deleteFiles += $pathExtBerechnungen + $Auftragsnummer + ".LILO" }
-    if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + "-Jupiter.txt")) { $deleteFiles += $pathExtBerechnungen + $Auftragsnummer + "-Jupiter.txt" }
-    if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + "-Pluto.txt")) { $deleteFiles += $pathExtBerechnungen + $Auftragsnummer + "-Pluto.txt" }
-    if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + "-Beripac.txt")) { $deleteFiles += $pathExtBerechnungen + $Auftragsnummer + "-Beripac.txt" }
-    if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + "-Pluto-Seil.txt")) { $deleteFiles += $pathExtBerechnungen + $Auftragsnummer + "-Pluto-Seil.txt" }
-    if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + "-ZZE-S.txt")) { $deleteFiles += $pathExtBerechnungen + $Auftragsnummer + "-ZZE-S.txt" }
-    if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + "-G.txt")) { $deleteFiles += $pathExtBerechnungen + $Auftragsnummer + "-G.txt" }
-
-
-    foreach ($deleteFile in $deleteFiles) {
-        try {
-            $pathDeleteFile = $sourcePath + $deleteFile
-            Remove-Item $pathDeleteFile -Force
+            if (Test-Path ($workPathBerechnungenPDF)) { Remove-Item -Path $workPathBerechnungenPDF -Recurse -Force }
+            if (Test-Path ($workPathTUEVZertifikate)) { Remove-Item -Path $workPathTUEVZertifikate -Recurse -Force }
         }
-        catch {
-            # TODO Ausgabe Fehlermeldung
+
+        $deleteFiles = @()
+        $deleteFiles += $Auftragsnummer + "-AutoDeskTransfer.xml"
+        if (Test-Path ($sourcePath + $Auftragsnummer + "-Spezifikation.pdf")) { $deleteFiles += $Auftragsnummer + "-Spezifikation.pdf" }
+        if (Test-Path ($sourcePath + $Auftragsnummer + "-LiftHistory.json")) { $deleteFiles += $Auftragsnummer + "-LiftHistory.json" }
+        if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + ".html")) { $deleteFiles += $pathExtBerechnungen + $Auftragsnummer + ".html" }
+        if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + ".aus")) { $deleteFiles += $pathExtBerechnungen + $Auftragsnummer + ".aus" }
+        if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + ".dat")) { $deleteFiles += $pathExtBerechnungen + $Auftragsnummer + ".dat" }
+        if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + ".LILO")) { $deleteFiles += $pathExtBerechnungen + $Auftragsnummer + ".LILO" }
+        if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + "-Jupiter.txt")) { $deleteFiles += $pathExtBerechnungen + $Auftragsnummer + "-Jupiter.txt" }
+        if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + "-Pluto.txt")) { $deleteFiles += $pathExtBerechnungen + $Auftragsnummer + "-Pluto.txt" }
+        if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + "-Beripac.txt")) { $deleteFiles += $pathExtBerechnungen + $Auftragsnummer + "-Beripac.txt" }
+        if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + "-Pluto-Seil.txt")) { $deleteFiles += $pathExtBerechnungen + $Auftragsnummer + "-Pluto-Seil.txt" }
+        if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + "-ZZE-S.txt")) { $deleteFiles += $pathExtBerechnungen + $Auftragsnummer + "-ZZE-S.txt" }
+        if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + "-G.txt")) { $deleteFiles += $pathExtBerechnungen + $Auftragsnummer + "-G.txt" }
+
+
+        foreach ($deleteFile in $deleteFiles) {
+            try {
+                $pathDeleteFile = $sourcePath + $deleteFile
+                Remove-Item $pathDeleteFile -Force
+            }
+            catch {
+                # TODO Ausgabe Fehlermeldung
+            }
         }
     }
-
     #FileStatus auslesen 
     $FileStatus = $VltHelpers.GetVaultFileStatus($connection, $sourceFile) 
     
