@@ -26,8 +26,6 @@ Param(
     [bool]$CustomFile = $false
 )
 
-$CustomFile = $true
-
 class DownloadInfo {
     [bool]$Success = $null
     [string]$FileName
