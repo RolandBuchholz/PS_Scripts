@@ -42,8 +42,8 @@ class ZALiftKey {
      }
 }
 
-#$SynchronizeDirection = "set"
-#$FullPathXml = 'C:\Work\AUFTRÄGE NEU\Konstruktion\100\1001042-1048\1001042\1001042-AutoDeskTransfer.xml'
+# $SynchronizeDirection = "set"
+# $FullPathXml = 'C:\Work\AUFTRÄGE NEU\Konstruktion\934\934049\934049-AutoDeskTransfer.xml'
 
 try {
      $xml = [XML] (Get-Content -Path $FullPathXml -Encoding UTF8)
@@ -92,7 +92,7 @@ try {
      $ListZALiftKeys.Add("Filename1", ([ZALiftKey]$key = New-Object ZALiftKey("LAST", "Filename1", $var_AuftragsNummer, "String")))
      $ListZALiftKeys.Add("Fkg", ([ZALiftKey]$key = New-Object ZALiftKey("LAST", "Fkg", $var_F, "String")))
      $ListZALiftKeys.Add("Gkg", ([ZALiftKey]$key = New-Object ZALiftKey("LAST", "Gkg", $var_GGW_Rahmen_Gewicht, "String")))
-     #$ListZALiftKeys.Add("Kunde", ([ZALiftKey]$key = New-Object ZALiftKey("LAST", "Kunde", "", "String")))
+     $ListZALiftKeys.Add("Kunde", ([ZALiftKey]$key = New-Object ZALiftKey("LAST", "Kunde", $var_AuftragsNummer, "String")))
      $ListZALiftKeys.Add("Projektb1", ([ZALiftKey]$key = New-Object ZALiftKey("LAST", "Projektb1", $var_AuftragsNummer, "String")))
      $ListZALiftKeys.Add("Qkg", ([ZALiftKey]$key = New-Object ZALiftKey("LAST", "Qkg", $var_Q, "String")))
      $ListZALiftKeys.Add("V", ([ZALiftKey]$key = New-Object ZALiftKey("LAST", "V", $var_v, "String")))
@@ -186,11 +186,25 @@ try {
                               $newValue = "0"
                          }
                     }
+                    "Kunde" {
+                         $newValue = "Berchtenbreiter GmbH"
+                    }
                     { ($_ -eq "Gkg") -or ($_ -eq "Anlage-G") } {
 
-                         $GGWRahmenGewicht = [System.Convert]::ToDecimal($var_GGW_Rahmen_Gewicht.value, [cultureinfo]::GetCultureInfo('de-DE'))
-                         $GGWFuellgewicht = [System.Convert]::ToDecimal($var_GGW_Fuellgewicht.value, [cultureinfo]::GetCultureInfo('de-DE'))
-  
+                         if ($var_GGW_Rahmen_Gewicht.value -ne "") {
+                              $GGWRahmenGewicht = [System.Convert]::ToDecimal($var_GGW_Rahmen_Gewicht.value, [cultureinfo]::GetCultureInfo('de-DE'))
+                         }
+                         else {
+                              $GGWRahmenGewicht = 0
+                         }
+
+                         if ($var_GGW_Fuellgewicht.value -ne "") {
+                              $GGWFuellgewicht = [System.Convert]::ToDecimal($var_GGW_Fuellgewicht.value, [cultureinfo]::GetCultureInfo('de-DE'))
+                         }
+                         else {
+                              $GGWFuellgewicht = 0
+                         }
+                         
                          if (($GGWRahmenGewicht + $GGWFuellgewicht) -gt 300) {
                               $newValue = ($GGWRahmenGewicht + $GGWFuellgewicht).ToString()
                          }
@@ -203,7 +217,7 @@ try {
                          $newValue = ($Vdetektor * 1000).ToString()
                     }
                     "Filename_next" {
-                         $newValue = (Split-Path -Path $FullPathXml) + "\Berechnungen\" + $var_AuftragsNummer.value
+                         $newValue = (Split-Path -Path $FullPathXml) + "\Berechnungen\" + $var_AuftragsNummer.value + "-LDM_temp"
                     }
                     "Netzpfad" {
                          $newValue = (Split-Path -Path $FullPathXml) + "\Berechnungen\"
@@ -222,7 +236,7 @@ try {
      }
      elseif ($SynchronizeDirection -eq "get") {
       
-          
+          # not yet available
      }
      $errCode = 0
 }

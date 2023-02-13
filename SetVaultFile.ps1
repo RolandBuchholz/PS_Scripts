@@ -6,7 +6,7 @@
      File Name : SetVaultFile.ps1
      Author : Buchholz Roland – roland.buchholz@berchtenbreiter-gmbh.de
 .VERSION
-       Version 1.10 – add custom filedownload
+       Version 1.15 – add properties for .aus
 .EXAMPLE
      Beispiel wie das Script aufgerufen wird > SetVaultFile.ps1 -Auftragsnummer 8951234 $true
                                                                             (Auftragsnummer)(CustomFile optional)  
@@ -395,7 +395,7 @@ try {
                         $vault.DocumentServiceExtensions.UpdateFileCategories($uploadFile.MasterId, 31, $uploadFile.Comm)
                     }
                 }
-                ".html" {
+                { ($_ -eq ".html") -or ($_ -eq ".aus") } {
                     $html = New-Object -ComObject "HTMLFile"
                     try {
                         $html.IHTMLDocument2_write((Get-Content ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + ".html") -raw))
@@ -438,17 +438,6 @@ try {
                     $newProps.Add('Aufhängung', $aufhaengung)
                     $newProps.Add('Lage Antrieb', $lageTreibscheibe)
                     $newProps.Add('Treibscheibe Zylinder', $treibscheibe )
-                    if ($uploadFile.Cat.CatName -ne "AntriebsDaten") {
-                        $vault.DocumentServiceExtensions.UpdateFileCategories($uploadFile.MasterId, 35, $uploadFile.Comm)
-                    }
-                }
-                ".aus" {
-                    $Beschreibung = "Antriebsauslegung Ziehl Abegg"
-                    $Kategorie = "Berechnungen"    
-                    $newProps.Add('Beschreibung', $Beschreibung)
-                    $newProps.Add('Projekt', $Auftragsnummer)
-                    $newProps.Add('Verfasser', $verfasser)
-                    $newProps.Add('Kategorie', $Kategorie)
                     if ($uploadFile.Cat.CatName -ne "AntriebsDaten") {
                         $vault.DocumentServiceExtensions.UpdateFileCategories($uploadFile.MasterId, 35, $uploadFile.Comm)
                     }
