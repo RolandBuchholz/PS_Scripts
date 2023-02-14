@@ -43,7 +43,7 @@ class ZALiftKey {
 }
 
 # $SynchronizeDirection = "set"
-# $FullPathXml = 'C:\Work\AUFTRÄGE NEU\Konstruktion\934\934049\934049-AutoDeskTransfer.xml'
+# $FullPathXml = 'C:\Work\AUFTRÄGE NEU\Konstruktion\100\1001042-1048\1001042\1001042-AutoDeskTransfer.xml'
 
 try {
      $xml = [XML] (Get-Content -Path $FullPathXml -Encoding UTF8)
@@ -126,6 +126,13 @@ try {
      $ListZALiftKeys.Add("UCM-Erkennungsweg", ([ZALiftKey]$key = New-Object ZALiftKey("ZAL", "UCM-Erkennungsweg", $var_Erkennungsweg, "String")))
      $ListZALiftKeys.Add("UCM-Geschwindigkeitsdetektor", ([ZALiftKey]$key = New-Object ZALiftKey("ZAL", "UCM-Geschwindigkeitsdetektor", $var_Vdetektor, "String")))
      $ListZALiftKeys.Add("UCM-Totzeit", ([ZALiftKey]$key = New-Object ZALiftKey("ZAL", "UCM-Totzeit", $var_Totzeit, "String")))
+     $ListZALiftKeys.Add("Motor-FAN", ([ZALiftKey]$key = New-Object ZALiftKey("ZAL", "Motor-FAN", $var_Fremdbelueftung, "String")))
+     $ListZALiftKeys.Add("Bremsmodul-Typ", ([ZALiftKey]$key = New-Object ZALiftKey("ZAL", "Bremsmodul-Typ", $var_ElektrBremsenansteuerung, "String")))
+     $ListZALiftKeys.Add("Treibscheibe-H", ([ZALiftKey]$key = New-Object ZALiftKey("ZAL", "Treibscheibe-H", $var_Treibscheibegehaertet, "String")))
+     $ListZALiftKeys.Add("Bremse-Handlueftung", ([ZALiftKey]$key = New-Object ZALiftKey("ZAL", "Bremse-Handlueftung", $var_Handlueftung, "String")))
+     $ListZALiftKeys.Add("Bremse-Handlüftung", ([ZALiftKey]$key = New-Object ZALiftKey("ZAL", "Bremse-Handlüftung", $var_Handlueftung, "String")))
+     $ListZALiftKeys.Add("Bremse-Lueftueberwachung", ([ZALiftKey]$key = New-Object ZALiftKey("ZAL", "Bremse-Lueftueberwachung", $var_Handlueftung, "String")))
+     $ListZALiftKeys.Add("Geber-Typ", ([ZALiftKey]$key = New-Object ZALiftKey("ZAL", "Geber-Typ", $var_MotorGeber, "String")))
 
      if ($SynchronizeDirection -eq "set") {
 
@@ -217,10 +224,58 @@ try {
                          $newValue = ($Vdetektor * 1000).ToString()
                     }
                     "Filename_next" {
-                         $newValue = (Split-Path -Path $FullPathXml) + "\Berechnungen\" + $var_AuftragsNummer.value + "-LDM_temp"
+                         $newValue = (Split-Path -Path $FullPathXml) + "\Berechnungen\" + $var_AuftragsNummer.value
                     }
                     "Netzpfad" {
                          $newValue = (Split-Path -Path $FullPathXml) + "\Berechnungen\"
+                    }
+                    "Motor-FAN" {
+                         if ($par.Value.value -eq "true") {
+                              #regedit not possible
+                         }
+                    }
+                    "Bremsmodul-Typ" {
+                         if ($par.Value.value -eq "true") {
+                              $newValue = "ZAsbc4C 230"
+                         }
+                         else {
+                              $newValue = "ohne"
+                         }
+                    }
+                    "Treibscheibe-H" {
+                         if ($par.Value.value -eq "true") {
+                              $newValue = "1"
+                         }
+                         else {
+                              $newValue = "0"
+                         }
+                    }
+                    { ($_ -eq "Bremse-Handlueftung" ) -or ($_ -eq "Bremse-Handlüftung") } {
+                         if ($par.Value.value -like "mit Hand") {
+                              $newValue = "mit Handlueftung"
+                         }
+                         elseif ($par.Value.value -like "Bowden") {
+                              $newValue = "fuer Bowdenzug"
+                         }
+                         else {
+                              $newValue = "ohne Handlueftung"
+                         }
+                    }
+                    "Bremse-Lueftueberwachung" {
+                         if ($par.Value.value -like "Mikrosch") {
+                              $newValue = "Mikroschalter"
+                         }
+                         else {
+                              $newValue = "Naeherungsschalter"
+                         }
+                    }
+                    "Geber-Typ" {
+                         if ($par.Value.value -eq "") {
+                              $newValue = "ECN1313ENDAT"
+                         }
+                         else {
+                              $newValue = $par.Value.value
+                         }
                     }
                     Default {
                          $newValue = $par.Value.value
