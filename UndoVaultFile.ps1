@@ -6,7 +6,7 @@
      File Name : UndoVaultFile.ps1
      Author : Buchholz Roland – roland.buchholz@berchtenbreiter-gmbh.de
 .VERSION
-     Version 1.10 – add custom filedownload
+     Version 1.15 – add housekeeping
 .EXAMPLE
      Beispiel wie das Script aufgerufen wird > UndoVaultFile.ps1 -Auftragsnummer 8951234 $true
                                                                     (Auftragsnummer)(CustomFile optional)  
@@ -226,7 +226,45 @@ try {
                 }
             }
         }
-        
+
+        #Housekeeping
+
+        $workPathBerechnungenPDF = $sourcePath + $pathExtBerechnungenPDF
+        $workPathTUEVZertifikate = $sourcePath + $pathExtTUEVZertifikate
+
+
+        If (($workPathBerechnungenPDF -match "C:/Work/AUFTRÄGE NEU") -and ($workPathTUEVZertifikate -match "C:/Work/AUFTRÄGE NEU")) {
+    
+            if (Test-Path ($workPathBerechnungenPDF)) { Remove-Item -Path $workPathBerechnungenPDF -Recurse -Force }
+            if (Test-Path ($workPathTUEVZertifikate)) { Remove-Item -Path $workPathTUEVZertifikate -Recurse -Force }
+        }
+
+        $deleteFiles = @()
+        $deleteFiles += $Auftragsnummer + "-AutoDeskTransfer.xml"
+        if (Test-Path ($sourcePath + $Auftragsnummer + "-Spezifikation.pdf")) { $deleteFiles += $Auftragsnummer + "-Spezifikation.pdf" }
+        if (Test-Path ($sourcePath + $Auftragsnummer + "-LiftHistory.json")) { $deleteFiles += $Auftragsnummer + "-LiftHistory.json" }
+        if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + ".html")) { $deleteFiles += $pathExtBerechnungen + $Auftragsnummer + ".html" }
+        if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + ".aus")) { $deleteFiles += $pathExtBerechnungen + $Auftragsnummer + ".aus" }
+        if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + ".dat")) { $deleteFiles += $pathExtBerechnungen + $Auftragsnummer + ".dat" }
+        if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + ".LILO")) { $deleteFiles += $pathExtBerechnungen + $Auftragsnummer + ".LILO" }
+        if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + "-Jupiter.txt")) { $deleteFiles += $pathExtBerechnungen + $Auftragsnummer + "-Jupiter.txt" }
+        if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + "-Pluto.txt")) { $deleteFiles += $pathExtBerechnungen + $Auftragsnummer + "-Pluto.txt" }
+        if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + "-Beripac.txt")) { $deleteFiles += $pathExtBerechnungen + $Auftragsnummer + "-Beripac.txt" }
+        if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + "-Pluto-Seil.txt")) { $deleteFiles += $pathExtBerechnungen + $Auftragsnummer + "-Pluto-Seil.txt" }
+        if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + "-ZZE-S.txt")) { $deleteFiles += $pathExtBerechnungen + $Auftragsnummer + "-ZZE-S.txt" }
+        if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + "-G.txt")) { $deleteFiles += $pathExtBerechnungen + $Auftragsnummer + "-G.txt" }
+
+
+        foreach ($deleteFile in $deleteFiles) {
+            try {
+                $pathDeleteFile = $sourcePath + $deleteFile
+                Remove-Item $pathDeleteFile -Force
+            }
+            catch {
+                # TODO Ausgabe Fehlermeldung
+            }
+        }
+
         #FileStatus auslesen 
         $FileStatus = New-Object 'system.collections.generic.dictionary[string,string]'
         $FileStatus = $VltHelpers.GetVaultFileStatus($connection, $sourceFile.FullName) 
