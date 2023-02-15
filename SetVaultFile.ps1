@@ -78,6 +78,12 @@ function LogOut {
     $Host.SetShouldExit([int]$errCode)
     exit
 }
+
+function Remove-EmptyFolders([string]$folders) {
+    Get-Childitem $folders -Recurse | Where-Object { $_.PSIsContainer -and !(Get-Childitem $_.Fullname -Recurse | 
+            Where-Object { !$_.PSIsContainer }) } | Remove-Item -Force -Recurse -ErrorAction SilentlyContinue
+}
+
 # Auftragsnummervalidierung
 if (!$CustomFile) {
     if (($Auftragsnummer.Length -eq 6 -or $Auftragsnummer.Length -eq 7) -and $Auftragsnummer -match '^\d+$') {
@@ -677,6 +683,10 @@ try {
                 # TODO Ausgabe Fehlermeldung
             }
         }
+    }
+    # leere Ordner löschen
+    If (($sourcePath -match "C:/Work/AUFTRÄGE NEU")) {
+        Remove-EmptyFolders $sourcePath 
     }
     #FileStatus auslesen 
     $FileStatus = $VltHelpers.GetVaultFileStatus($connection, $sourceFile) 

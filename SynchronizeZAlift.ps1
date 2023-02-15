@@ -43,7 +43,7 @@ class ZALiftKey {
 }
 
 # $SynchronizeDirection = "set"
-# $FullPathXml = 'C:\Work\AUFTRÄGE NEU\Konstruktion\100\1001042-1048\1001042\1001042-AutoDeskTransfer.xml'
+# $FullPathXml = 'C:\Work\AUFTRÄGE NEU\Konstruktion\895\8951450-1455\8951451\8951451-AutoDeskTransfer.xml'
 
 try {
      $xml = [XML] (Get-Content -Path $FullPathXml -Encoding UTF8)
@@ -81,6 +81,8 @@ try {
      $RegistryPathAll = 'HKCU:\SOFTWARE\VB and VBA Program Settings\ZETALIFT\All'
      $RegistryPathZAL = 'HKCU:\SOFTWARE\VB and VBA Program Settings\ZETALIFT\ZAL'
 
+     New-ItemProperty -Path $RegistryPathAll -Name "HtmlFormat" -Value "0" -PropertyType "String" -Force
+     
      $ListZALiftKeys = New-Object 'system.collections.generic.dictionary[string,ZALiftKey]'
 
      $ListZALiftKeys.Add("A", ([ZALiftKey]$key = New-Object ZALiftKey("LAST", "A", $var_AufhaengungsartRope, "String")))
@@ -197,7 +199,6 @@ try {
                          $newValue = "Berchtenbreiter GmbH"
                     }
                     { ($_ -eq "Gkg") -or ($_ -eq "Anlage-G") } {
-
                          if ($var_GGW_Rahmen_Gewicht.value -ne "") {
                               $GGWRahmenGewicht = [System.Convert]::ToDecimal($var_GGW_Rahmen_Gewicht.value, [cultureinfo]::GetCultureInfo('de-DE'))
                          }
@@ -220,8 +221,13 @@ try {
                          } 
                     }
                     "A3_Ausloesegeschwindigkeit" {
-                         $Vdetektor = [System.Convert]::ToDecimal($var_Vdetektor.value, [cultureinfo]::GetCultureInfo('de-DE'))
-                         $newValue = ($Vdetektor * 1000).ToString()
+                         if ($par.Value.value -ne "") {
+                              $Vdetektor = [System.Convert]::ToDecimal($var_Vdetektor.value, [cultureinfo]::GetCultureInfo('de-DE'))
+                              $newValue = ($Vdetektor * 1000).ToString()
+                         }
+                         else {
+                              $newValue = ""
+                         }
                     }
                     "Filename_next" {
                          $newValue = (Split-Path -Path $FullPathXml) + "\Berechnungen\" + $var_AuftragsNummer.value
@@ -251,10 +257,10 @@ try {
                          }
                     }
                     { ($_ -eq "Bremse-Handlueftung" ) -or ($_ -eq "Bremse-Handlüftung") } {
-                         if ($par.Value.value -like "mit Hand") {
+                         if ($par.Value.value -match "mit Hand") {
                               $newValue = "mit Handlueftung"
                          }
-                         elseif ($par.Value.value -like "Bowden") {
+                         elseif ($par.Value.value -match "Bowden") {
                               $newValue = "fuer Bowdenzug"
                          }
                          else {
@@ -262,7 +268,7 @@ try {
                          }
                     }
                     "Bremse-Lueftueberwachung" {
-                         if ($par.Value.value -like "Mikrosch") {
+                         if ($par.Value.value -match "Mikrosch") {
                               $newValue = "Mikroschalter"
                          }
                          else {

@@ -6,7 +6,7 @@
      File Name : UndoVaultFile.ps1
      Author : Buchholz Roland – roland.buchholz@berchtenbreiter-gmbh.de
 .VERSION
-     Version 1.15 – add housekeeping
+     Version 1.17 – improve housekeeping
 .EXAMPLE
      Beispiel wie das Script aufgerufen wird > UndoVaultFile.ps1 -Auftragsnummer 8951234 $true
                                                                     (Auftragsnummer)(CustomFile optional)  
@@ -77,6 +77,12 @@ function LogOut {
     $Host.SetShouldExit([int]$errCode)
     exit
 }
+
+function Remove-EmptyFolders([string]$folders) {
+    Get-Childitem $folders -Recurse | Where-Object { $_.PSIsContainer -and !(Get-Childitem $_.Fullname -Recurse | 
+            Where-Object { !$_.PSIsContainer }) } | Remove-Item -Force -Recurse -ErrorAction SilentlyContinue
+}
+
 # Auftragsnummervalidierung
 if (!$CustomFile) {
     if (($Auftragsnummer.Length -eq 6 -or $Auftragsnummer.Length -eq 7) -and $Auftragsnummer -match '^\d+$') {
@@ -149,7 +155,6 @@ try {
         $seachPath = "C:\Work\"
     }
     
-
     $sourceFile = Get-ChildItem -Path $seachPath -Recurse -Include $seachFile -Attributes a
     if ($null -eq $sourceFile) {
         Write-Host "AutoDeskTransferXml im Arbeitsbereich nicht gefunden."-ForegroundColor DarkRed
@@ -196,7 +201,6 @@ try {
         $vault = $connection.WebServiceManager
         $vaultPathAutodesktransferXml = $VltHelpers.ConvertLocalPathToVaultPath($connection, $FileStatus["FullFileName"])
 
-
         #Dateinamen der benötigten Dateien
         $undoFiles = @()
         $undoFiles += $vaultPathAutodesktransferXml + "/" + $FileStatus["FileName"]
@@ -229,9 +233,14 @@ try {
 
         #Housekeeping
 
+        $pathExtBerechnungen = "Berechnungen/"
+        $pathExtBerechnungenPDF = "Berechnungen/PDF/"
+        $pathExtTUEVZertifikate = "Montage-TÜV-Dokumentation/TÜV/Zertifikate/"
+
+        $sourcePath = (Split-Path -Path $FileStatus["FullFileName"]).Replace("\", "/") + "/"
+
         $workPathBerechnungenPDF = $sourcePath + $pathExtBerechnungenPDF
         $workPathTUEVZertifikate = $sourcePath + $pathExtTUEVZertifikate
-
 
         If (($workPathBerechnungenPDF -match "C:/Work/AUFTRÄGE NEU") -and ($workPathTUEVZertifikate -match "C:/Work/AUFTRÄGE NEU")) {
     
@@ -263,6 +272,11 @@ try {
             catch {
                 # TODO Ausgabe Fehlermeldung
             }
+        }
+
+        # leere Ordner löschen
+        If (($sourcePath -match "C:/Work/AUFTRÄGE NEU")) {
+            Remove-EmptyFolders $sourcePath
         }
 
         #FileStatus auslesen 
