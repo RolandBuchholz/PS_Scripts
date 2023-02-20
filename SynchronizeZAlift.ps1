@@ -6,7 +6,7 @@
      File Name : SynchronizeZAlift.ps1
      Author : Buchholz Roland – roland.buchholz@berchtenbreiter-gmbh.de
 .VERSION
-     Version 0.10 – first Version
+     Version 0.15 – bugfix UCM
      Beispiel wie das Script aufgerufen wird > SynchronizeZAlift.ps1 get "C:\Work\AUFTRÄGE NEU\Konstruktion\100\1001042-1048\1001042\Save-1001042-AutoDeskTransfer.xml"
                                                                  (get or set)(FullPath)                                            
 .INPUTTYPE
@@ -43,7 +43,7 @@ class ZALiftKey {
 }
 
 # $SynchronizeDirection = "set"
-# $FullPathXml = 'C:\Work\AUFTRÄGE NEU\Konstruktion\895\8951450-1455\8951451\8951451-AutoDeskTransfer.xml'
+# $FullPathXml = 'C:\Work\AUFTRÄGE NEU\Konstruktion\895\8951450-1455\8951452\8951452-AutoDeskTransfer.xml'
 
 try {
      $xml = [XML] (Get-Content -Path $FullPathXml -Encoding UTF8)
@@ -222,11 +222,20 @@ try {
                     }
                     "A3_Ausloesegeschwindigkeit" {
                          if ($par.Value.value -ne "") {
-                              $Vdetektor = [System.Convert]::ToDecimal($var_Vdetektor.value, [cultureinfo]::GetCultureInfo('de-DE'))
+                              $Vdetektor = [System.Convert]::ToDecimal($par.Value.value, [cultureinfo]::GetCultureInfo('de-DE'))
                               $newValue = ($Vdetektor * 1000).ToString()
                          }
                          else {
-                              $newValue = ""
+                              $newValue = "0"
+                         }
+                    }
+                    "UCM-Erkennungsweg" {
+                         if ($par.Value.value -ne "") {
+                              $Erkennungsweg = [System.Convert]::ToDecimal($par.Value.value, [cultureinfo]::GetCultureInfo('de-DE'))
+                              $newValue = ($Erkennungsweg / 1000).ToString()
+                         }
+                         else {
+                              $newValue = "0"
                          }
                     }
                     "Filename_next" {
