@@ -6,7 +6,7 @@
      File Name : UndoVaultFile.ps1
      Author : Buchholz Roland – roland.buchholz@berchtenbreiter-gmbh.de
 .VERSION
-     Version 1.17 – improve housekeeping
+     Version 1.18 – bugfix housekeeping
 .EXAMPLE
      Beispiel wie das Script aufgerufen wird > UndoVaultFile.ps1 -Auftragsnummer 8951234 $true
                                                                     (Auftragsnummer)(CustomFile optional)  
@@ -182,7 +182,7 @@ try {
         LogOut($downloadresult)
     }
 
-    if ($FileStatus["CheckOutState"] -ne "CheckedOutByCurrentUser") {
+    if (($FileStatus["CheckOutState"] -ne "CheckedOutByCurrentUser") -and ($FileStatus["CheckOutState"] -ne "NotCheckedOut") ) {
         $downloadresult.Success = $false
         $downloadresult.FileName = $FileStatus["FileName"]
         $downloadresult.FullFileName = $FileStatus["FullFileName"]
@@ -198,35 +198,37 @@ try {
     # Auschecken Rückgängig - Reservierung enfernen
     try {
 
-        $vault = $connection.WebServiceManager
-        $vaultPathAutodesktransferXml = $VltHelpers.ConvertLocalPathToVaultPath($connection, $FileStatus["FullFileName"])
+        if (($FileStatus["CheckOutState"] -ne "CheckedOutByCurrentUser")) {
+            $vault = $connection.WebServiceManager
+            $vaultPathAutodesktransferXml = $VltHelpers.ConvertLocalPathToVaultPath($connection, $FileStatus["FullFileName"])
 
-        #Dateinamen der benötigten Dateien
-        $undoFiles = @()
-        $undoFiles += $vaultPathAutodesktransferXml + "/" + $FileStatus["FileName"]
-        if (!$CustomFile) {
-            $BerechnungenPath = $vaultPathAutodesktransferXml + "/Berechnungen/"
-            $undoFiles += $vaultPathAutodesktransferXml + "/" + $Auftragsnummer + "-Spezifikation.pdf"
-            $undoFiles += $vaultPathAutodesktransferXml + "/" + $Auftragsnummer + "-LiftHistory.json"
-            $undoFiles += $BerechnungenPath + $Auftragsnummer + ".html"
-            $undoFiles += $BerechnungenPath + $Auftragsnummer + ".aus"
-            $undoFiles += $BerechnungenPath + $Auftragsnummer + ".dat"
-            $undoFiles += $BerechnungenPath + $Auftragsnummer + ".LILO"
-        }
+            #Dateinamen der benötigten Dateien
+            $undoFiles = @()
+            $undoFiles += $vaultPathAutodesktransferXml + "/" + $FileStatus["FileName"]
+            if (!$CustomFile) {
+                $BerechnungenPath = $vaultPathAutodesktransferXml + "/Berechnungen/"
+                $undoFiles += $vaultPathAutodesktransferXml + "/" + $Auftragsnummer + "-Spezifikation.pdf"
+                $undoFiles += $vaultPathAutodesktransferXml + "/" + $Auftragsnummer + "-LiftHistory.json"
+                $undoFiles += $BerechnungenPath + $Auftragsnummer + ".html"
+                $undoFiles += $BerechnungenPath + $Auftragsnummer + ".aus"
+                $undoFiles += $BerechnungenPath + $Auftragsnummer + ".dat"
+                $undoFiles += $BerechnungenPath + $Auftragsnummer + ".LILO"
+            }
 
-        $vaultFoundUndoFiles = $vault.DocumentService.FindLatestFilesByPaths($undoFiles)
+            $vaultFoundUndoFiles = $vault.DocumentService.FindLatestFilesByPaths($undoFiles)
 
-        $downloadTicket = New-Object Autodesk.Connectivity.WebServices.ByteArray
+            $downloadTicket = New-Object Autodesk.Connectivity.WebServices.ByteArray
         
-        foreach ($vaultFoundUndoFile in $vaultFoundUndoFiles) {
+            foreach ($vaultFoundUndoFile in $vaultFoundUndoFiles) {
             
-            if ($vaultFoundUndoFile.Id -gt 0 -and $vaultFoundUndoFile.CheckedOut) {
-                #FileStatus auslesen 
-                $undoFileStatus = New-Object 'system.collections.generic.dictionary[string,string]'
-                $undoFileStatus = $VltHelpers.GetVaultFileStatus($connection, $vaultFoundUndoFile.CkOutSpec)
+                if ($vaultFoundUndoFile.Id -gt 0 -and $vaultFoundUndoFile.CheckedOut) {
+                    #FileStatus auslesen 
+                    $undoFileStatus = New-Object 'system.collections.generic.dictionary[string,string]'
+                    $undoFileStatus = $VltHelpers.GetVaultFileStatus($connection, $vaultFoundUndoFile.CkOutSpec)
 
-                if ($undoFileStatus["CheckOutState"] -eq "CheckedOutByCurrentUser" ) {
-                    $vault.DocumentService.UndoCheckoutFile($vaultFoundUndoFile.MasterId, [ref]$downloadTicket)
+                    if ($undoFileStatus["CheckOutState"] -eq "CheckedOutByCurrentUser" ) {
+                        $vault.DocumentService.UndoCheckoutFile($vaultFoundUndoFile.MasterId, [ref]$downloadTicket)
+                    }
                 }
             }
         }
