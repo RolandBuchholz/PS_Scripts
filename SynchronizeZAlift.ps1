@@ -6,7 +6,7 @@
      File Name : SynchronizeZAlift.ps1
      Author : Buchholz Roland – roland.buchholz@berchtenbreiter-gmbh.de
 .VERSION
-     Version 0.20 – add inverter
+     Version 0.21 – bugfix carRope
      Beispiel wie das Script aufgerufen wird > SynchronizeZAlift.ps1 get "C:\Work\AUFTRÄGE NEU\Konstruktion\100\1001042-1048\1001042\Save-1001042-AutoDeskTransfer.xml"
                                                                  (get or set)(FullPath)                                            
 .INPUTTYPE
@@ -43,7 +43,7 @@ class ZALiftKey {
 }
 
 # $SynchronizeDirection = "set"
-# $FullPathXml = 'C:\Work\AUFTRÄGE NEU\Konstruktion\895\8951450-1455\8951452\8951452-AutoDeskTransfer.xml'
+# $FullPathXml = 'C:\Work\AUFTRÄGE NEU\Konstruktion\895\8951456-1469\8951461\8951461-AutoDeskTransfer.xml'
 
 try {
 
@@ -184,11 +184,11 @@ try {
                          }
                     }
                     { ($_ -eq "D") -or ($_ -eq "Seilalt") -or ($_ -eq "Treibscheibe-SD") } {
-                         $ropeSplit = $par.Value.value.Split("mm")
-                         if ($par.Key -eq "Seilalt" -and $ropeSplit.Count -ge 3) {
-                              $newValue = $ropeSplit[2].Trim()
+                         $ropeSplit = $par.Value.value -split "mm"
+                         if ($par.Key -eq "Seilalt" -and $ropeSplit.Count -ge 2) {
+                              $newValue = $ropeSplit[1].Trim()
                          }
-                         elseif ($ropeSplit.Count -ge 3) {
+                         elseif ($ropeSplit.Count -ge 2) {
                               $newValue = $ropeSplit[0].Replace("D", "").Trim()
                          }
                     }
