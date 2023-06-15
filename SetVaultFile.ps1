@@ -6,7 +6,7 @@
      File Name : SetVaultFile.ps1
      Author : Buchholz Roland – roland.buchholz@berchtenbreiter-gmbh.de
 .VERSION
-       Version 1.15 – add properties for .aus
+       Version 1.18 – bugfix machinePosition
 .EXAMPLE
      Beispiel wie das Script aufgerufen wird > SetVaultFile.ps1 -Auftragsnummer 8951234 $true
                                                                             (Auftragsnummer)(CustomFile optional)  
@@ -424,8 +424,19 @@ try {
                         }
                         $infoTreibscheibe = ($HTML.body.getElementsByTagName('tr') | Where-Object { $_.innerText -like "Treibscheibe *" -or $_.innerText -like "Traction sheave*" })
                         if ($null -ne $infoTreibscheibe) {
-                            $lageTreibscheibe = $infoTreibscheibe.innerText[0] 
-                            $Treibscheibe = $infoTreibscheibe.innerText[2] 
+                            if ($infoTreibscheibe.Length -gt 2) {
+                                $lageTreibscheibe = $infoTreibscheibe.innerText[0] 
+                                $Treibscheibe = $infoTreibscheibe.innerText[2] 
+                            }
+                            else {
+                                try {
+                                    $lageTreibscheibe = ($HTML.body.getElementsByTagName('tr') | Where-Object { $_.innerText -like "Maschine*" -or $_.innerText -like "Machine*" }).innerText
+                                }
+                                catch {
+                                    Write-Host "Lage Treibscheibe konnte nicht gelesen werden."-ForegroundColor DarkRed 
+                                }
+                                $Treibscheibe = $infoTreibscheibe.innerText[1] 
+                            }
                         }
                     }
                     else {
