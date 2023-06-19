@@ -6,7 +6,7 @@
      File Name : UndoVaultFile.ps1
      Author : Buchholz Roland – roland.buchholz@berchtenbreiter-gmbh.de
 .VERSION
-     Version 1.18 – bugfix housekeeping
+     Version 1.19 – bugfix checkUndoValidation
 .EXAMPLE
      Beispiel wie das Script aufgerufen wird > UndoVaultFile.ps1 -Auftragsnummer 8951234 $true
                                                                     (Auftragsnummer)(CustomFile optional)  
@@ -198,7 +198,7 @@ try {
     # Auschecken Rückgängig - Reservierung enfernen
     try {
 
-        if (($FileStatus["CheckOutState"] -ne "CheckedOutByCurrentUser")) {
+        if (($FileStatus["CheckOutState"] -eq "CheckedOutByCurrentUser")) {
             $vault = $connection.WebServiceManager
             $vaultPathAutodesktransferXml = $VltHelpers.ConvertLocalPathToVaultPath($connection, $FileStatus["FullFileName"])
 
