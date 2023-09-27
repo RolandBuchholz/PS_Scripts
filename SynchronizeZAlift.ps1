@@ -6,7 +6,7 @@
      File Name : SynchronizeZAlift.ps1
      Author : Buchholz Roland – roland.buchholz@berchtenbreiter-gmbh.de
 .VERSION
-     Version 0.21 – bugfix carRope
+     Version 0.25 – add counterWeightMass
      Beispiel wie das Script aufgerufen wird > SynchronizeZAlift.ps1 get "C:\Work\AUFTRÄGE NEU\Konstruktion\100\1001042-1048\1001042\Save-1001042-AutoDeskTransfer.xml"
                                                                  (get or set)(FullPath)                                            
 .INPUTTYPE
@@ -42,8 +42,8 @@ class ZALiftKey {
      }
 }
 
-# $SynchronizeDirection = "set"
-# $FullPathXml = 'C:\Work\AUFTRÄGE NEU\Konstruktion\895\8951456-1469\8951461\8951461-AutoDeskTransfer.xml'
+$SynchronizeDirection = "set"
+ $FullPathXml = 'C:\Work\AUFTRÄGE NEU\Konstruktion\100\1001042-1048\1001042\1001042-AutoDeskTransfer.xml'
 
 try {
 
@@ -65,6 +65,7 @@ try {
           $var_FH = $parameter | Where-Object { $_.name -eq "var_FH" }
           $var_AuftragsNummer = $parameter | Where-Object { $_.name -eq "var_AuftragsNummer" }
           $var_F = $parameter | Where-Object { $_.name -eq "var_F" }
+          $var_GegenGewicht_Masse = $parameter | Where-Object { $_.name -eq "var_Gegengewichtsmasse" }
           $var_GGW_Rahmen_Gewicht = $parameter | Where-Object { $_.name -eq "var_GGW_Rahmen_Gewicht" }
           $var_GGW_Fuellgewicht = $parameter | Where-Object { $_.name -eq "var_GGW_Fuellgewicht" }
           $var_Q = $parameter | Where-Object { $_.name -eq "var_Q" }
@@ -204,26 +205,32 @@ try {
                          $newValue = "Berchtenbreiter GmbH"
                     }
                     { ($_ -eq "Gkg") -or ($_ -eq "Anlage-G") } {
-                         if ($var_GGW_Rahmen_Gewicht.value -ne "") {
-                              $GGWRahmenGewicht = [System.Convert]::ToDecimal($var_GGW_Rahmen_Gewicht.value, [cultureinfo]::GetCultureInfo('de-DE'))
-                         }
-                         else {
-                              $GGWRahmenGewicht = 0
-                         }
 
-                         if ($var_GGW_Fuellgewicht.value -ne "") {
-                              $GGWFuellgewicht = [System.Convert]::ToDecimal($var_GGW_Fuellgewicht.value, [cultureinfo]::GetCultureInfo('de-DE'))
+                         if ($var_GegenGewicht_Masse.value -ne "") {
+                              $newValue = $var_GegenGewicht_Masse.value
                          }
                          else {
-                              $GGWFuellgewicht = 0
+                              if ($var_GGW_Rahmen_Gewicht.value -ne "") {
+                                   $GGWRahmenGewicht = [System.Convert]::ToDecimal($var_GGW_Rahmen_Gewicht.value, [cultureinfo]::GetCultureInfo('de-DE'))
+                              }
+                              else {
+                                   $GGWRahmenGewicht = 0
+                              }
+     
+                              if ($var_GGW_Fuellgewicht.value -ne "") {
+                                   $GGWFuellgewicht = [System.Convert]::ToDecimal($var_GGW_Fuellgewicht.value, [cultureinfo]::GetCultureInfo('de-DE'))
+                              }
+                              else {
+                                   $GGWFuellgewicht = 0
+                              }
+                              
+                              if (($GGWRahmenGewicht + $GGWFuellgewicht) -gt 300) {
+                                   $newValue = ($GGWRahmenGewicht + $GGWFuellgewicht).ToString()
+                              }
+                              else {
+                                   $newValue = "0"
+                              } 
                          }
-                         
-                         if (($GGWRahmenGewicht + $GGWFuellgewicht) -gt 300) {
-                              $newValue = ($GGWRahmenGewicht + $GGWFuellgewicht).ToString()
-                         }
-                         else {
-                              $newValue = "0"
-                         } 
                     }
                     "A3_Ausloesegeschwindigkeit" {
                          if ($par.Value.value -ne "") {
