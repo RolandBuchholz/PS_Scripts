@@ -6,7 +6,7 @@
      File Name : SetVaultFile.ps1
      Author : Buchholz Roland – roland.buchholz@berchtenbreiter-gmbh.de
 .VERSION
-       Version 1.18 – bugfix machinePosition
+       Version 1.19 – add housekeeping CAD
 .EXAMPLE
      Beispiel wie das Script aufgerufen wird > SetVaultFile.ps1 -Auftragsnummer 8951234 $true
                                                                             (Auftragsnummer)(CustomFile optional)  
@@ -661,12 +661,14 @@ try {
 
         $workPathBerechnungenPDF = $sourcePath + $pathExtBerechnungenPDF
         $workPathTUEVZertifikate = $sourcePath + $pathExtTUEVZertifikate
+        $workPathCAD = $sourcePath + $pathExtCAD
 
 
         If (($workPathBerechnungenPDF -match "C:/Work/AUFTRÄGE NEU") -and ($workPathTUEVZertifikate -match "C:/Work/AUFTRÄGE NEU")) {
     
             if (Test-Path ($workPathBerechnungenPDF)) { Remove-Item -Path $workPathBerechnungenPDF -Recurse -Force }
             if (Test-Path ($workPathTUEVZertifikate)) { Remove-Item -Path $workPathTUEVZertifikate -Recurse -Force }
+            if (Test-Path ($workPathCAD)) { Remove-Item -Path $workPathCAD -Recurse -Force }
         }
 
         $deleteFiles = @()
