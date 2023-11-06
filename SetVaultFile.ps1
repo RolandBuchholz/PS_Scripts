@@ -6,7 +6,7 @@
      File Name : SetVaultFile.ps1
      Author : Buchholz Roland – roland.buchholz@berchtenbreiter-gmbh.de
 .VERSION
-       Version 1.19 – add housekeeping CAD
+       Version 1.20 – add pdfsharp
 .EXAMPLE
      Beispiel wie das Script aufgerufen wird > SetVaultFile.ps1 -Auftragsnummer 8951234 $true
                                                                             (Auftragsnummer)(CustomFile optional)  
@@ -53,7 +53,12 @@ try {
     }
     else {
         [System.Reflection.Assembly]::LoadFrom($Env:ProgramData + "\Autodesk\Vault 2022\Extensions\DataStandard\Vault.Custom\addinVault\VdsSampleUtilities.dll")
-    }  
+    }
+    $pdfSharpPath = "C:\Work\Administration\PowerShellScripts\PdfSharp\PdfSharp.dll"
+    if (Test-Path $pdfSharpPath) {
+        Add-Type -path "C:\Work\Administration\PowerShellScripts\PdfSharp\PdfSharp.dll"
+
+    }
 }
 catch {
     Write-Host "Vault Client oder DataStandard wurde nicht gefunden!"
@@ -372,11 +377,17 @@ try {
                 ".pdf" {
                     If ($uploadTargetPath -match "Berechnungen") {
                         $Kategorie = "Berechnungen"
-                        $verfasser = "CFP"
+                        $document = [PdfSharp.Pdf.IO.PdfReader]::Open($uploadSource)
+                        if ($null -ne $document) {
+                            $verfasser = $document.Info.Author
+                        }
                     }
                     ElseIf ($uploadTargetPath -match "Zertifikate") {
                         $Kategorie = "Baumuster-Zertifikate"
-                        $verfasser = "CFP"
+                        $document = [PdfSharp.Pdf.IO.PdfReader]::Open($uploadSource)
+                        if ($null -ne $document) {
+                            $verfasser = $document.Info.Author
+                        }
                     }
                     Else {
                         $Kategorie = "Berechnungen"

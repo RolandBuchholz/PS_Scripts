@@ -6,7 +6,7 @@
      File Name : GetVaultFile.ps1
      Author : Buchholz Roland – roland.buchholz@berchtenbreiter-gmbh.de
 .VERSION
-     Version 1.10 – add custom filedownload
+     Version 1.12 – add pdfsharp download
      Beispiel wie das Script aufgerufen wird > GetVaultFile.ps1 8951234 $true
                                                         (Auftragsnummer)(ReadOnly)
      Beispiel für beliebige Datei > GetVaultFile.ps1 BerechnungXY.pdf $true $true
@@ -170,6 +170,13 @@ try {
     }
     else {
         $downloadFiles += $Auftragsnummer
+    }
+
+    #Check Pdfsharp.dll
+
+    $pdfSharpPath = "C:\Work\Administration\PowerShellScripts\PdfSharp\PdfSharp.dll"
+    if (-Not(Test-Path $pdfSharpPath)) {
+        $downloadFiles += "PdfSharp.dll"
     }
 
     #Quellpfad ermitteln
