@@ -6,7 +6,7 @@
      File Name : SynchronizeZAlift.ps1
      Author : Buchholz Roland – roland.buchholz@berchtenbreiter-gmbh.de
 .VERSION
-     Version 0.25 – add counterWeihtMass
+     Version 0.26 – update for ZA-Lift 231016
      Beispiel wie das Script aufgerufen wird > SynchronizeZAlift.ps1 get "C:\Work\AUFTRÄGE NEU\Konstruktion\100\1001042-1048\1001042\Save-1001042-AutoDeskTransfer.xml"
                                                                  (get or set)(FullPath)                                            
 .INPUTTYPE
@@ -183,12 +183,47 @@ try {
                          }
                     }
                     { ($_ -eq "D") -or ($_ -eq "Seilalt") -or ($_ -eq "Treibscheibe-SD") } {
-                         $ropeSplit = $par.Value.value -split "mm"
-                         if ($par.Key -eq "Seilalt" -and $ropeSplit.Count -ge 2) {
-                              $newValue = $ropeSplit[1].Trim()
+                         if ($par.Value.value -ne ""){
+                              $ropeSplit = $par.Value.value -split "mm"
+                              if ($par.Key -eq "Seilalt" -and $ropeSplit.Count -ge 2) {
+                                   $newValue = $ropeSplit[1].Trim()
+                              }
+                              elseif ($ropeSplit.Count -ge 2) {
+                                   $newValue = $ropeSplit[0].Replace("D", "").Trim()
+                              }
                          }
-                         elseif ($ropeSplit.Count -ge 2) {
-                              $newValue = $ropeSplit[0].Replace("D", "").Trim()
+                         else {
+                              if ($par.Key -eq "Seilalt") {
+                                   $newValue = "DRAKO 250 T - CA067/2"
+                              }
+                              else {
+                                   $newValue = "6,5"
+                              }
+                         }
+                    }
+                    { ($_ -eq "ZUM") -or ($_ -eq "ZUMF") -or ($_ -eq "ZUMG") } {
+                         
+                         if ($par.Value.value -ne ""){
+                              $newValue = $par.Value.value
+                         }
+                         else{
+                              $newValue = "0"  
+                         }
+                    }
+                    "Z" {
+                         if ($par.Value.value -ne ""){
+                              $newValue = $par.Value.value
+                         }
+                         else{
+                              $newValue = "2"  
+                         }
+                    }
+                    "BETA" {
+                         if ($par.Value.value -ne ""){
+                              $newValue = $par.Value.value
+                         }
+                         else{
+                              $newValue = "180"  
                          }
                     }
                     "EN81-20" {
@@ -220,6 +255,14 @@ try {
                               $newValue = "0"
                          }
                     }
+                    "A3_Kabinenhoehe" {
+                         if ($par.Value.value -ne "") {
+                              $newValue = $par.Value.value
+                         }
+                         else {
+                              $newValue = "2100"
+                         }
+                    }
                     "UCM-Erkennungsweg" {
                          if ($par.Value.value -ne "") {
                               $Erkennungsweg = [System.Convert]::ToDecimal($par.Value.value, [cultureinfo]::GetCultureInfo('de-DE'))
@@ -233,12 +276,12 @@ try {
                          $newValue = (Split-Path -Path $FullPathXml) + "\Berechnungen\" + $var_AuftragsNummer.value
                     }
                     "Motor-FAN" {
-                         if ($par.Value.value -eq "true") {
+                         if ($par.Value.value -eq "True") {
                               #regedit not possible
                          }
                     }
                     "Bremsmodul-Typ" {
-                         if ($par.Value.value -eq "true") {
+                         if ($par.Value.value -eq "True") {
                               $newValue = "ZAsbc4C 230"
                          }
                          else {
@@ -246,7 +289,7 @@ try {
                          }
                     }
                     "Treibscheibe-H" {
-                         if ($par.Value.value -eq "true") {
+                         if ($par.Value.value -eq "True") {
                               $newValue = "1"
                          }
                          else {
