@@ -6,7 +6,7 @@
      File Name : SetVaultFile.ps1
      Author : Buchholz Roland – roland.buchholz@berchtenbreiter-gmbh.de
 .VERSION
-       Version 1.20 – add pdfsharp
+       Version 1.21 – upload CFP-DB-Modification
 .EXAMPLE
      Beispiel wie das Script aufgerufen wird > SetVaultFile.ps1 -Auftragsnummer 8951234 $true
                                                                             (Auftragsnummer)(CustomFile optional)  
@@ -18,8 +18,7 @@
 .COMPONENT
      Vault Server
 #>
-
-      
+     
 Param(
     [Parameter(Mandatory = $true)]          
     [String]$Auftragsnummer,
@@ -239,10 +238,15 @@ try {
         }
     }
     if (!$CustomFile) {
+        if (Test-Path ($sourcePath + $pathExtBerechnungen)) { $berechnungenFiles = Get-ChildItem -Path ($sourcePath + $pathExtBerechnungen) -Filter  *.pdf }
         if (Test-Path ($sourcePath + $pathExtBerechnungenPDF)) { $berechnungenPDFFiles = Get-ChildItem -Path ($sourcePath + $pathExtBerechnungenPDF) -Filter  *.pdf }
         if (Test-Path ($sourcePath + $pathExtCAD)) { $cadFiles = Get-ChildItem -Path ($sourcePath + $pathExtCAD) -Filter  *.dwg }
         if (Test-Path ($sourcePath + $pathExtTUEVZertifikate)) { $zertifikateFiles = Get-ChildItem -Path ($sourcePath + $pathExtTUEVZertifikate) -Filter  *.pdf }
- 
+
+        foreach ($berechnung in $berechnungenFiles) {
+            $uploadFiles += $pathExtBerechnungen + $berechnung
+        }
+
         foreach ($berechnungensPDF in $berechnungenPDFFiles) {
             $uploadFiles += $pathExtBerechnungenPDF + $berechnungensPDF
         }
@@ -286,10 +290,10 @@ try {
             }
         }
 
-        #Prüfen ob Daten zum Upload vorhanden sind 
+        #Prüfen ob veraltete Berechnungs Daten vorhanden sind
         if ($berechnungenPDFFiles -match 'Anlagedaten' -or 
             $berechnungenPDFFiles -match 'Lift data' -or 
-            $berechnungenPDFFiles -match 'Données techniques de l´installation' ) {
+            $berechnungenPDFFiles -match 'Données techniques de l´installation') {
         
             #Daten im Vault löschen
             $toDeleteVaultFiles = @()
@@ -297,10 +301,10 @@ try {
             $propDefs = $vault.PropertyService.GetPropertyDefinitionsByEntityClassId("FILE")
             $custPropDefIds = $propDefs | Where-Object { $_.IsSys -eq $false } | Select-Object -ExpandProperty Id
 
-            if ($berechnungenPDFFiles.Count -gt 0) {
-                $vaultPathBerechnungen = ($targetPath + "/" + $pathExtBerechnungenPDF).TrimEnd("/")
-                $vaultFolderBerechnungen = $vault.DocumentService.GetFolderByPath($vaultPathBerechnungen)
-                $files = $vault.DocumentService.GetLatestFilesByFolderId($vaultFolderBerechnungen.Id, $true)
+            if ($berechnungenPDFFiles.Count -gt 3) {
+                $vaultPathBerechnungenPDF = ($targetPath + "/" + $pathExtBerechnungenPDF).TrimEnd("/")
+                $vaultFolderBerechnungenPDF = $vault.DocumentService.GetFolderByPath($vaultPathBerechnungenPDF)
+                $files = $vault.DocumentService.GetLatestFilesByFolderId($vaultFolderBerechnungenPDF.Id, $true)
                 foreach ($file in $files) {
                     if ($file.Cat.CatName -eq "Office" -and $file.Name.EndsWith(".pdf")) {
 
@@ -330,7 +334,6 @@ try {
                     }
                 } 
             }
-
             foreach ($toDeleteVaultFile in $toDeleteVaultFiles) {
                 try {
                     $toDeleteFolder = $vault.DocumentService.GetFoldersByFileMasterId($toDeleteVaultFile.MasterId)
@@ -339,6 +342,40 @@ try {
                 }
                 catch { 
                     Write-Host  $toDeleteVaultFile.Name "nicht gelöscht,keine Rechte zum Löschen..."-ForegroundColor DarkRed
+                }
+            }
+        }
+
+        #Prüfen ob veraltete CFP-DB-Modification vorhanden sind
+        if ($berechnungenFiles -match 'DB-Anpassungen'){
+            
+            # delete outdated CFP-DB-Modification
+            if ($berechnungenFiles.Count -gt 0) {
+
+                $vaultPathBerechnungen = ($targetPath + "/" + $pathExtBerechnungen).TrimEnd("/")
+                $vaultFolderBerechnungen = $vault.DocumentService.GetFolderByPath($vaultPathBerechnungen)
+                $vaultCalculationsFiles = $vault.DocumentService.GetLatestFilesByFolderId($vaultFolderBerechnungen.Id, $true)
+
+                if ($files.Count -gt 0) {
+                    $oldCFPDBModifications =  $vaultCalculationsFiles.Where{$_.Name -match 'DB-Anpassungen' } 
+                    $oldCFPDBModificationsNames =  $oldCFPDBModifications.Name
+                    $newCFPDBModifications = $berechnungenFiles -match 'DB-Anpassungen'
+                    $toDeleteCFPDBModifications = Compare-Object $newCFPDBModifications $oldCFPDBModificationsNames -PassThru | Where-Object{$_.Sideindicator -eq '=>'}
+                
+                    if ($toDeleteCFPDBModifications.Count -gt 0){
+                        foreach ($vaultCalculationsFile in $vaultCalculationsFiles) {
+                            if($toDeleteCFPDBModifications.Contains($vaultCalculationsFile.Name)){
+                                try {
+                                    $toDeleteFolder = $vault.DocumentService.GetFoldersByFileMasterId($vaultCalculationsFile.MasterId)
+                                    $vault.DocumentService.DeleteFileFromFolderUnconditional($vaultCalculationsFile.MasterId , $toDeleteFolder[0].Id)
+                                    Write-Host  $vaultCalculationsFile.Name  "gelöscht..."-ForegroundColor Yellow
+                                }
+                                catch { 
+                                Write-Host  $vaultCalculationsFile.Name "nicht gelöscht,keine Rechte zum Löschen..."-ForegroundColor DarkRed
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -394,7 +431,7 @@ try {
                         $newProps.Add('Kommentare', "Von Spezifikation automatisch generierte Datei")
                     }
                     
-                    $newProps.Add('Beschreibung', $Beschreibung)
+                    $newProps.Add('Beschreibung', $Beschreibung.Replace(".pdf",""))
                     $newProps.Add('Projekt', $Auftragsnummer)
                     $newProps.Add('Verfasser', $verfasser)
                     $newProps.Add('Kategorie', $Kategorie)
@@ -634,7 +671,6 @@ try {
             $var_FH.value = $FHmm.tostring()
         }
 
-
         #Ordnereigenschaften schreiben und übermitteln
 
         $fabriknummer.Val = $var_FabrikNummer.value
@@ -672,13 +708,17 @@ try {
 
         $workPathBerechnungenPDF = $sourcePath + $pathExtBerechnungenPDF
         $workPathTUEVZertifikate = $sourcePath + $pathExtTUEVZertifikate
+        $workPathBerechnungen = $sourcePath + $pathExtBerechnungen
         $workPathCAD = $sourcePath + $pathExtCAD
 
-
-        If (($workPathBerechnungenPDF -match "C:/Work/AUFTRÄGE NEU") -and ($workPathTUEVZertifikate -match "C:/Work/AUFTRÄGE NEU")) {
+        If (($workPathBerechnungenPDF -match "C:/Work/AUFTRÄGE NEU") -and 
+            ($workPathTUEVZertifikate -match "C:/Work/AUFTRÄGE NEU") -and
+            ($workPathCAD -match "C:/Work/AUFTRÄGE NEU") -and 
+            ($workPathBerechnungen -match "C:/Work/AUFTRÄGE NEU")) {
     
             if (Test-Path ($workPathBerechnungenPDF)) { Remove-Item -Path $workPathBerechnungenPDF -Recurse -Force }
             if (Test-Path ($workPathTUEVZertifikate)) { Remove-Item -Path $workPathTUEVZertifikate -Recurse -Force }
+            if (Test-Path ($workPathBerechnungen)) { Remove-Item -Path $workPathBerechnungen  -Recurse -Force }
             if (Test-Path ($workPathCAD)) { Remove-Item -Path $workPathCAD -Recurse -Force }
         }
 
@@ -686,18 +726,6 @@ try {
         $deleteFiles += $Auftragsnummer + "-AutoDeskTransfer.xml"
         if (Test-Path ($sourcePath + $Auftragsnummer + "-Spezifikation.pdf")) { $deleteFiles += $Auftragsnummer + "-Spezifikation.pdf" }
         if (Test-Path ($sourcePath + $Auftragsnummer + "-LiftHistory.json")) { $deleteFiles += $Auftragsnummer + "-LiftHistory.json" }
-        if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + ".html")) { $deleteFiles += $pathExtBerechnungen + $Auftragsnummer + ".html" }
-        if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + ".aus")) { $deleteFiles += $pathExtBerechnungen + $Auftragsnummer + ".aus" }
-        if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + ".dat")) { $deleteFiles += $pathExtBerechnungen + $Auftragsnummer + ".dat" }
-        if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + ".LILO")) { $deleteFiles += $pathExtBerechnungen + $Auftragsnummer + ".LILO" }
-        if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + "-Jupiter.txt")) { $deleteFiles += $pathExtBerechnungen + $Auftragsnummer + "-Jupiter.txt" }
-        if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + "-Pluto.txt")) { $deleteFiles += $pathExtBerechnungen + $Auftragsnummer + "-Pluto.txt" }
-        if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + "-Beripac.txt")) { $deleteFiles += $pathExtBerechnungen + $Auftragsnummer + "-Beripac.txt" }
-        if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + "-Pluto-Seil.txt")) { $deleteFiles += $pathExtBerechnungen + $Auftragsnummer + "-Pluto-Seil.txt" }
-        if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + "-ZZE-S.txt")) { $deleteFiles += $pathExtBerechnungen + $Auftragsnummer + "-ZZE-S.txt" }
-        if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + "-G.txt")) { $deleteFiles += $pathExtBerechnungen + $Auftragsnummer + "-G.txt" }
-
-
         foreach ($deleteFile in $deleteFiles) {
             try {
                 $pathDeleteFile = $sourcePath + $deleteFile
@@ -710,7 +738,7 @@ try {
     }
     # leere Ordner löschen
     If (($sourcePath -match "C:/Work/AUFTRÄGE NEU")) {
-        Remove-EmptyFolders $sourcePath 
+        Remove-EmptyFolders $sourcePath.Replace("/" + $Auftragsnummer + "/","")
     }
     #FileStatus auslesen 
     $FileStatus = $VltHelpers.GetVaultFileStatus($connection, $sourceFile) 

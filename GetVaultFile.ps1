@@ -6,7 +6,7 @@
      File Name : GetVaultFile.ps1
      Author : Buchholz Roland – roland.buchholz@berchtenbreiter-gmbh.de
 .VERSION
-     Version 1.12 – add pdfsharp download
+     Version 1.13 – download CFP-DB-Modification
      Beispiel wie das Script aufgerufen wird > GetVaultFile.ps1 8951234 $true
                                                         (Auftragsnummer)(ReadOnly)
      Beispiel für beliebige Datei > GetVaultFile.ps1 BerechnungXY.pdf $true $true
@@ -156,6 +156,7 @@ else {
 try {
     
     $VltHelpers = New-Object VdsSampleUtilities.VltHelpers
+    $vault = $connection.WebServiceManager
 
     #Dateinamen der benötigten Dateien
     $downloadFiles = @()
@@ -232,26 +233,34 @@ try {
             }
         }
     }
-    else {
-        $SearchCriteria = New-Object 'system.collections.generic.dictionary[string,string]'
-        $SearchCriteria.Add("Name", "")
-        $SearchCriteria["Name"] = $downloadFiles[0]
-        $ADTFile = $VltHelpers.GetFileBySearchCriteria($connection, $SearchCriteria, $true, $false)
 
-        #FileStatus auslesen 
-        $FileStatus = New-Object 'system.collections.generic.dictionary[string,string]'
-        $FileStatus = $VltHelpers.GetVaultFileStatus($connection, $ADTFile)
+    #FileStatus auslesen
+    $SearchCriteria = New-Object 'system.collections.generic.dictionary[string,string]'
+    $SearchCriteria.Add("Name", "")
+    $SearchCriteria["Name"] = $downloadFiles[0]
+    $ADTFile = $VltHelpers.GetFileBySearchCriteria($connection, $SearchCriteria, $true, $false) 
+    $FileStatus = New-Object 'system.collections.generic.dictionary[string,string]'
+    $FileStatus = $VltHelpers.GetVaultFileStatus($connection, $ADTFile)
 
-        if ($FileStatus["CheckOutState"] -eq "CheckedOutByOtherUser") {
-            $ReadOnly = $true
-            $errCode = 10
+    if ($FileStatus["CheckOutState"] -eq "CheckedOutByOtherUser") {
+        $ReadOnly = $true
+        $errCode = 10 # Datei wurde von anderem User ausgechecked
+    }
+
+    #optionale Daten ermitteln CFP-DB-Modification
+    $targetPath = $VltHelpers.ConvertLocalPathToVaultPath($connection, $ADTFile)
+    $vaultFolderBerechnungen = $vault.DocumentService.GetFolderByPath($targetPath + "/Berechnungen")
+
+    $calculationsFiles = $vault.DocumentService.GetLatestFilesByFolderId($vaultFolderBerechnungen.Id, $true)
+    if ($calculationsFiles.count -gt 0) {
+        foreach ($calcFile in $calculationsFiles) {
+            if ($calcFile.Name.StartsWith($Auftragsnummer + "-DB-Anpassungen")){
+                $downloadFiles += $calcFile.Name
+            }
         }
     }
 
     #Dateien im Vault suchen (auschecken) und den Arbeitsbereich ermitteln
-    $SearchCriteria = New-Object 'system.collections.generic.dictionary[string,string]'
-    $SearchCriteria.Add("Name", "")
-
     $vaultFiles = @()
     for ($i = 0; $i -le $downloadFiles.Count - 1; $i++) {
         $SearchCriteria["Name"] = $downloadFiles[$i]

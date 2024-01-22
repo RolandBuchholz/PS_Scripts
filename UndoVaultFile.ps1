@@ -6,7 +6,7 @@
      File Name : UndoVaultFile.ps1
      Author : Buchholz Roland – roland.buchholz@berchtenbreiter-gmbh.de
 .VERSION
-     Version 1.19 – bugfix checkUndoValidation
+     Version 1.22 – bugfix Housekeeping
 .EXAMPLE
      Beispiel wie das Script aufgerufen wird > UndoVaultFile.ps1 -Auftragsnummer 8951234 $true
                                                                     (Auftragsnummer)(CustomFile optional)  
@@ -206,17 +206,24 @@ try {
             $undoFiles = @()
             $undoFiles += $vaultPathAutodesktransferXml + "/" + $FileStatus["FileName"]
             if (!$CustomFile) {
-                $BerechnungenPath = $vaultPathAutodesktransferXml + "/Berechnungen/"
                 $undoFiles += $vaultPathAutodesktransferXml + "/" + $Auftragsnummer + "-Spezifikation.pdf"
                 $undoFiles += $vaultPathAutodesktransferXml + "/" + $Auftragsnummer + "-LiftHistory.json"
+                $BerechnungenPath = $vaultPathAutodesktransferXml + "/Berechnungen/"
                 $undoFiles += $BerechnungenPath + $Auftragsnummer + ".html"
                 $undoFiles += $BerechnungenPath + $Auftragsnummer + ".aus"
                 $undoFiles += $BerechnungenPath + $Auftragsnummer + ".dat"
                 $undoFiles += $BerechnungenPath + $Auftragsnummer + ".LILO"
+                $vaultFolderBerechnungen = $vault.DocumentService.GetFolderByPath($BerechnungenPath)
+                $calculationsFiles = $vault.DocumentService.GetLatestFilesByFolderId($vaultFolderBerechnungen.Id, $true)
+                if ($calculationsFiles.count -gt 0) {
+                    foreach ($calcFile in $calculationsFiles) {
+                        if ($calcFile.Name.StartsWith($Auftragsnummer + "-DB-Anpassungen")){
+                            $undoFiles += $BerechnungenPath + $calcFile.Name
+                        }
+                    }
+                }
             }
-
             $vaultFoundUndoFiles = $vault.DocumentService.FindLatestFilesByPaths($undoFiles)
-
             $downloadTicket = New-Object Autodesk.Connectivity.WebServices.ByteArray
         
             foreach ($vaultFoundUndoFile in $vaultFoundUndoFiles) {
@@ -235,36 +242,11 @@ try {
 
         #Housekeeping
 
-        $pathExtBerechnungen = "Berechnungen/"
-        $pathExtBerechnungenPDF = "Berechnungen/PDF/"
-        $pathExtTUEVZertifikate = "Montage-TÜV-Dokumentation/TÜV/Zertifikate/"
-
-        $sourcePath = (Split-Path -Path $FileStatus["FullFileName"]).Replace("\", "/") + "/"
-
-        $workPathBerechnungenPDF = $sourcePath + $pathExtBerechnungenPDF
-        $workPathTUEVZertifikate = $sourcePath + $pathExtTUEVZertifikate
-
-        If (($workPathBerechnungenPDF -match "C:/Work/AUFTRÄGE NEU") -and ($workPathTUEVZertifikate -match "C:/Work/AUFTRÄGE NEU")) {
-    
-            if (Test-Path ($workPathBerechnungenPDF)) { Remove-Item -Path $workPathBerechnungenPDF -Recurse -Force }
-            if (Test-Path ($workPathTUEVZertifikate)) { Remove-Item -Path $workPathTUEVZertifikate -Recurse -Force }
-        }
-
         $deleteFiles = @()
         $deleteFiles += $Auftragsnummer + "-AutoDeskTransfer.xml"
+        $sourcePath = (Split-Path -Path $FileStatus["FullFileName"]).Replace("\", "/") + "/"
         if (Test-Path ($sourcePath + $Auftragsnummer + "-Spezifikation.pdf")) { $deleteFiles += $Auftragsnummer + "-Spezifikation.pdf" }
         if (Test-Path ($sourcePath + $Auftragsnummer + "-LiftHistory.json")) { $deleteFiles += $Auftragsnummer + "-LiftHistory.json" }
-        if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + ".html")) { $deleteFiles += $pathExtBerechnungen + $Auftragsnummer + ".html" }
-        if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + ".aus")) { $deleteFiles += $pathExtBerechnungen + $Auftragsnummer + ".aus" }
-        if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + ".dat")) { $deleteFiles += $pathExtBerechnungen + $Auftragsnummer + ".dat" }
-        if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + ".LILO")) { $deleteFiles += $pathExtBerechnungen + $Auftragsnummer + ".LILO" }
-        if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + "-Jupiter.txt")) { $deleteFiles += $pathExtBerechnungen + $Auftragsnummer + "-Jupiter.txt" }
-        if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + "-Pluto.txt")) { $deleteFiles += $pathExtBerechnungen + $Auftragsnummer + "-Pluto.txt" }
-        if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + "-Beripac.txt")) { $deleteFiles += $pathExtBerechnungen + $Auftragsnummer + "-Beripac.txt" }
-        if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + "-Pluto-Seil.txt")) { $deleteFiles += $pathExtBerechnungen + $Auftragsnummer + "-Pluto-Seil.txt" }
-        if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + "-ZZE-S.txt")) { $deleteFiles += $pathExtBerechnungen + $Auftragsnummer + "-ZZE-S.txt" }
-        if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + "-G.txt")) { $deleteFiles += $pathExtBerechnungen + $Auftragsnummer + "-G.txt" }
-
 
         foreach ($deleteFile in $deleteFiles) {
             try {
@@ -276,9 +258,30 @@ try {
             }
         }
 
+        $pathExtBerechnungen = "Berechnungen/"
+        $pathExtBerechnungenPDF = "Berechnungen/PDF/"
+        $pathExtTUEVZertifikate = "Montage-TÜV-Dokumentation/TÜV/Zertifikate/"
+        $pathExtCAD = "Bgr00/CAD-CFP/"
+
+        $workPathBerechnungenPDF = $sourcePath + $pathExtBerechnungenPDF
+        $workPathTUEVZertifikate = $sourcePath + $pathExtTUEVZertifikate
+        $workPathBerechnungen = $sourcePath + $pathExtBerechnungen
+        $workPathCAD = $sourcePath + $pathExtCAD
+
+        If (($workPathBerechnungenPDF -match "C:/Work/AUFTRÄGE NEU") -and 
+            ($workPathTUEVZertifikate -match "C:/Work/AUFTRÄGE NEU") -and
+            ($workPathCAD -match "C:/Work/AUFTRÄGE NEU") -and 
+            ($workPathBerechnungen -match "C:/Work/AUFTRÄGE NEU")) {
+    
+            if (Test-Path ($workPathBerechnungenPDF)) { Remove-Item -Path $workPathBerechnungenPDF -Recurse -Force }
+            if (Test-Path ($workPathTUEVZertifikate)) { Remove-Item -Path $workPathTUEVZertifikate -Recurse -Force }
+            if (Test-Path ($workPathBerechnungen)) { Remove-Item -Path $workPathBerechnungen  -Recurse -Force }
+            if (Test-Path ($workPathCAD)) { Remove-Item -Path $workPathCAD -Recurse -Force }
+        }
+
         # leere Ordner löschen
         If (($sourcePath -match "C:/Work/AUFTRÄGE NEU")) {
-            Remove-EmptyFolders $sourcePath
+            Remove-EmptyFolders $sourcePath.Replace("/" + $Auftragsnummer + "/","")
         }
 
         #FileStatus auslesen 
