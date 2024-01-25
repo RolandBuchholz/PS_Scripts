@@ -42,8 +42,8 @@ class ZALiftKey {
      }
 }
 
-$SynchronizeDirection = "set"
-$FullPathXml = 'C:\Work\AUFTRÄGE NEU\Konstruktion\100\1006666\1006666-AutoDeskTransfer.xml'
+# $SynchronizeDirection = "set"
+# $FullPathXml = 'C:\Work\AUFTRÄGE NEU\Konstruktion\100\1006666\1006666-AutoDeskTransfer.xml'
 
 try {
 

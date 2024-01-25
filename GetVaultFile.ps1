@@ -6,7 +6,7 @@
      File Name : GetVaultFile.ps1
      Author : Buchholz Roland – roland.buchholz@berchtenbreiter-gmbh.de
 .VERSION
-     Version 1.13 – download CFP-DB-Modification
+     Version 1.14 – improve CustomFile download
      Beispiel wie das Script aufgerufen wird > GetVaultFile.ps1 8951234 $true
                                                         (Auftragsnummer)(ReadOnly)
      Beispiel für beliebige Datei > GetVaultFile.ps1 BerechnungXY.pdf $true $true
@@ -247,15 +247,17 @@ try {
         $errCode = 10 # Datei wurde von anderem User ausgechecked
     }
 
-    #optionale Daten ermitteln CFP-DB-Modification
-    $targetPath = $VltHelpers.ConvertLocalPathToVaultPath($connection, $ADTFile)
-    $vaultFolderBerechnungen = $vault.DocumentService.GetFolderByPath($targetPath + "/Berechnungen")
+    if (!$CustomFile) {
+        #optionale Daten ermitteln CFP-DB-Modification
+        $targetPath = $VltHelpers.ConvertLocalPathToVaultPath($connection, $ADTFile)
+        $vaultFolderBerechnungen = $vault.DocumentService.GetFolderByPath($targetPath + "/Berechnungen")
 
-    $calculationsFiles = $vault.DocumentService.GetLatestFilesByFolderId($vaultFolderBerechnungen.Id, $true)
-    if ($calculationsFiles.count -gt 0) {
-        foreach ($calcFile in $calculationsFiles) {
-            if ($calcFile.Name.StartsWith($Auftragsnummer + "-DB-Anpassungen")){
-                $downloadFiles += $calcFile.Name
+        $calculationsFiles = $vault.DocumentService.GetLatestFilesByFolderId($vaultFolderBerechnungen.Id, $true)
+        if ($calculationsFiles.count -gt 0) {
+            foreach ($calcFile in $calculationsFiles) {
+                if ($calcFile.Name.StartsWith($Auftragsnummer + "-DB-Anpassungen")){
+                    $downloadFiles += $calcFile.Name
+                }
             }
         }
     }
