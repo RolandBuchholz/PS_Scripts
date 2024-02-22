@@ -6,7 +6,7 @@
      File Name : SetVaultFile.ps1
      Author : Buchholz Roland – roland.buchholz@berchtenbreiter-gmbh.de
 .VERSION
-       Version 1.21 – upload CFP-DB-Modification
+       Version 1.22 – upload pdfOffers
 .EXAMPLE
      Beispiel wie das Script aufgerufen wird > SetVaultFile.ps1 -Auftragsnummer 8951234 $true
                                                                             (Auftragsnummer)(CustomFile optional)  
@@ -199,6 +199,7 @@ try {
         $pathExtBerechnungenPDF = "Berechnungen/PDF/"
         $pathExtCAD = "Bgr00/CAD-CFP/"
         $pathExtTUEVZertifikate = "Montage-TÜV-Dokumentation/TÜV/Zertifikate/"
+        $pathExtSV = "SV/"
         if (Test-Path ($sourcePath + $Auftragsnummer + "-Spezifikation.pdf")) { $uploadFiles += $Auftragsnummer + "-Spezifikation.pdf" }
         if (Test-Path ($sourcePath + $Auftragsnummer + "-LiftHistory.json")) { $uploadFiles += $Auftragsnummer + "-LiftHistory.json" }
         if (Test-Path ($sourcePath + $pathExtBerechnungen + $Auftragsnummer + ".html")) { $uploadFiles += $pathExtBerechnungen + $Auftragsnummer + ".html" }
@@ -242,6 +243,7 @@ try {
         if (Test-Path ($sourcePath + $pathExtBerechnungenPDF)) { $berechnungenPDFFiles = Get-ChildItem -Path ($sourcePath + $pathExtBerechnungenPDF) -Filter  *.pdf }
         if (Test-Path ($sourcePath + $pathExtCAD)) { $cadFiles = Get-ChildItem -Path ($sourcePath + $pathExtCAD) -Filter  *.dwg }
         if (Test-Path ($sourcePath + $pathExtTUEVZertifikate)) { $zertifikateFiles = Get-ChildItem -Path ($sourcePath + $pathExtTUEVZertifikate) -Filter  *.pdf }
+        if (Test-Path ($sourcePath + $pathExtSV)) { $correspondenceFiles = Get-ChildItem -Path ($sourcePath + $pathExtSV) -Filter  *.pdf }
 
         foreach ($berechnung in $berechnungenFiles) {
             $uploadFiles += $pathExtBerechnungen + $berechnung
@@ -258,7 +260,14 @@ try {
         foreach ($zertifikateFile in $zertifikateFiles) {
             $uploadFiles += $pathExtTUEVZertifikate + $zertifikateFile
         }
-    
+
+        foreach ($correspondenceFile in $correspondenceFiles) {
+
+            if ($correspondenceFile.Name.StartsWith($Auftragsnummer)){
+                $uploadFiles += $pathExtSV + $correspondenceFile
+            }
+        }
+
         #Prüfen ob Verzeichnisstruktur im Vault vorhanden ist
         $vaultPaths = @()
         $vaultPaths += ($targetPath + "/" + $pathExtBerechnungen).TrimEnd("/")
@@ -710,16 +719,14 @@ try {
         $workPathTUEVZertifikate = $sourcePath + $pathExtTUEVZertifikate
         $workPathBerechnungen = $sourcePath + $pathExtBerechnungen
         $workPathCAD = $sourcePath + $pathExtCAD
+        $workPathSV = $sourcePath + $pathExtSV
 
-        If (($workPathBerechnungenPDF -match "C:/Work/AUFTRÄGE NEU") -and 
-            ($workPathTUEVZertifikate -match "C:/Work/AUFTRÄGE NEU") -and
-            ($workPathCAD -match "C:/Work/AUFTRÄGE NEU") -and 
-            ($workPathBerechnungen -match "C:/Work/AUFTRÄGE NEU")) {
-    
+        If ($sourcePath -match "C:/Work/AUFTRÄGE NEU"){
             if (Test-Path ($workPathBerechnungenPDF)) { Remove-Item -Path $workPathBerechnungenPDF -Recurse -Force }
             if (Test-Path ($workPathTUEVZertifikate)) { Remove-Item -Path $workPathTUEVZertifikate -Recurse -Force }
             if (Test-Path ($workPathBerechnungen)) { Remove-Item -Path $workPathBerechnungen  -Recurse -Force }
             if (Test-Path ($workPathCAD)) { Remove-Item -Path $workPathCAD -Recurse -Force }
+            if (Test-Path ($workPathSV)) { Remove-Item -Path $workPathSV  -Recurse -Force }
         }
 
         $deleteFiles = @()
