@@ -6,7 +6,7 @@
      File Name : SetVaultFile.ps1
      Author : Buchholz Roland – roland.buchholz@berchtenbreiter-gmbh.de
 .VERSION
-       Version 1.22 – upload pdfOffers
+       Version 1.23 – bugfix updateFolderProperties
 .EXAMPLE
      Beispiel wie das Script aufgerufen wird > SetVaultFile.ps1 -Auftragsnummer 8951234 $true
                                                                             (Auftragsnummer)(CustomFile optional)  
@@ -675,7 +675,7 @@ try {
         $kommentare = $folderProps | Where-Object { $_.PropDefId -eq "24" }
 
         #Föderhöhe in Millimeter umwandeln
-        if ($null -ne $var_FH.value) {
+        if (-Not [string]::IsNullOrWhiteSpace($var_FH.value)) {
             $FHmm = [System.Convert]::ToDecimal($var_FH.value, [cultureinfo]::GetCultureInfo('de-DE')) * 1000
             $var_FH.value = $FHmm.tostring()
         }
@@ -707,6 +707,9 @@ try {
         $propValues.Items = New-Object Autodesk.Connectivity.WebServices.PropInstParam[] $folderProps.Count
         $i = 0
         foreach ($d in $folderProps.GetEnumerator()) {
+            if ($d.ValTyp.ToString() -eq "Numeric" -and [string]::IsNullOrWhiteSpace($d.Val)){
+                $d.Val = $null   
+            }
             $propValues.Items[$i] = New-Object Autodesk.Connectivity.WebServices.PropInstParam -Property @{PropDefId = $d.PropDefId; Val = $d.Val }
             $i++
         }
