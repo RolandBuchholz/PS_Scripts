@@ -6,7 +6,7 @@
      File Name : SetVaultFile.ps1
      Author : Buchholz Roland – roland.buchholz@berchtenbreiter-gmbh.de
 .VERSION
-       Version 1.23 – bugfix updateFolderProperties
+       Version 1.24 – bugfix DB-ModifikationsUpload
 .EXAMPLE
      Beispiel wie das Script aufgerufen wird > SetVaultFile.ps1 -Auftragsnummer 8951234 $true
                                                                             (Auftragsnummer)(CustomFile optional)  
@@ -369,18 +369,19 @@ try {
                     $oldCFPDBModifications =  $vaultCalculationsFiles.Where{$_.Name -match 'DB-Anpassungen' } 
                     $oldCFPDBModificationsNames =  $oldCFPDBModifications.Name
                     $newCFPDBModifications = $berechnungenFiles -match 'DB-Anpassungen'
-                    $toDeleteCFPDBModifications = Compare-Object $newCFPDBModifications $oldCFPDBModificationsNames -PassThru | Where-Object{$_.Sideindicator -eq '=>'}
-                
-                    if ($toDeleteCFPDBModifications.Count -gt 0){
-                        foreach ($vaultCalculationsFile in $vaultCalculationsFiles) {
-                            if($toDeleteCFPDBModifications.Contains($vaultCalculationsFile.Name)){
-                                try {
-                                    $toDeleteFolder = $vault.DocumentService.GetFoldersByFileMasterId($vaultCalculationsFile.MasterId)
-                                    $vault.DocumentService.DeleteFileFromFolderUnconditional($vaultCalculationsFile.MasterId , $toDeleteFolder[0].Id)
-                                    Write-Host  $vaultCalculationsFile.Name  "gelöscht..."-ForegroundColor Yellow
-                                }
-                                catch { 
-                                Write-Host  $vaultCalculationsFile.Name "nicht gelöscht,keine Rechte zum Löschen..."-ForegroundColor DarkRed
+                    if($null -ne $oldCFPDBModificationsNames){
+                        $toDeleteCFPDBModifications = Compare-Object $newCFPDBModifications $oldCFPDBModificationsNames -PassThru | Where-Object{$_.Sideindicator -eq '=>'}
+                        if ($toDeleteCFPDBModifications.Count -gt 0){
+                            foreach ($vaultCalculationsFile in $vaultCalculationsFiles) {
+                                if($toDeleteCFPDBModifications.Contains($vaultCalculationsFile.Name)){
+                                    try {
+                                        $toDeleteFolder = $vault.DocumentService.GetFoldersByFileMasterId($vaultCalculationsFile.MasterId)
+                                        $vault.DocumentService.DeleteFileFromFolderUnconditional($vaultCalculationsFile.MasterId , $toDeleteFolder[0].Id)
+                                        Write-Host  $vaultCalculationsFile.Name  "gelöscht..."-ForegroundColor Yellow
+                                    }
+                                    catch { 
+                                    Write-Host  $vaultCalculationsFile.Name "nicht gelöscht,keine Rechte zum Löschen..."-ForegroundColor DarkRed
+                                    }
                                 }
                             }
                         }
