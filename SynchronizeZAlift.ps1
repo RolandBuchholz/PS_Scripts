@@ -6,9 +6,9 @@
      File Name : SynchronizeZAlift.ps1
      Author : Buchholz Roland – roland.buchholz@berchtenbreiter-gmbh.de
 .VERSION
-     Version 0.26 – update for ZA-Lift 231016
+     Version 0.27 – update compensationRopeWeight and tractionSheavePos
      Beispiel wie das Script aufgerufen wird > SynchronizeZAlift.ps1 get "C:\Work\AUFTRÄGE NEU\Konstruktion\100\1001042-1048\1001042\Save-1001042-AutoDeskTransfer.xml"
-                                                                 (get or set)(FullPath)                                            
+                                                                 (set or reset)(FullPath)                                            
 .INPUTTYPE
      [String]$SynchronizeDirection
      [string]$FullPathXml
@@ -42,8 +42,8 @@ class ZALiftKey {
      }
 }
 
-# $SynchronizeDirection = "set"
-# $FullPathXml = 'C:\Work\AUFTRÄGE NEU\Konstruktion\100\1006666\1006666-AutoDeskTransfer.xml'
+#$SynchronizeDirection = "set"
+#$FullPathXml = 'C:\Work\AUFTRÄGE NEU\Konstruktion\100\1003000\1003000-AutoDeskTransfer.xml'
 
 try {
 
@@ -57,6 +57,7 @@ try {
 
           $parameter = $xml.selectNodes("//ParamWithValue")
 
+          $var_Kunde = $parameter | Where-Object { $_.name -eq "var_AnPersonZ1" }
           $var_AufhaengungsartRope = $parameter | Where-Object { $_.name -eq "var_AufhaengungsartRope" }
           $var_Bausatz = $parameter | Where-Object { $_.name -eq "var_Bausatz" }
           $var_Umschlingungswinkel = $parameter | Where-Object { $_.name -eq "var_Umschlingungswinkel" }
@@ -84,6 +85,33 @@ try {
           $var_Treibscheibegehaertet = $parameter | Where-Object { $_.name -eq "var_Treibscheibegehaertet" }
           $var_Handlueftung = $parameter | Where-Object { $_.name -eq "var_Handlueftung" }
           $var_MotorGeber = $parameter | Where-Object { $_.name -eq "var_MotorGeber" }
+          $var_UnterseilGewicht = $parameter | Where-Object { $_.name -eq "var_UnterseilGewicht" }
+          $var_LageAntrieb = $parameter | Where-Object { $_.name -eq "var_LageAntrieb" }
+          #$var_SeilabgangAntrieb = $parameter | Where-Object { $_.name -eq "var_SeilabgangAntrieb" }
+
+          # default values
+          if ($var_Kunde.value -eq ""){$var_Kunde.value = "Berchtenbreiter GmbH"}
+          if ($var_Q.value -eq ""){$var_Q.value = "100"}
+          if (($var_F.value -eq "") -or ($var_F.value -eq "0")){$var_F.value = "150"}
+          if ($var_FH.value -eq ""){$var_FH.value = "1"}
+          if ($var_V.value -eq ""){$var_V.value = "1"}
+          if (($var_GegenGewicht_Masse.value -eq "") -or ($var_GegenGewicht_Masse.value -eq "0")){$var_GegenGewicht_Masse.value = "200"}
+          if ($var_AufhaengungsartRope.value -eq ""){$var_AufhaengungsartRope.value = "1"}
+          if ($var_Tragseiltyp.value -eq ""){$var_Tragseiltyp.value = "D 8mm WOLF PAWO F7"}
+          if ($var_NumberOfRopes.value -eq ""){$var_NumberOfRopes.value = "2"}
+          if ($var_MotorGeber.value -eq ""){$var_MotorGeber.value = "ECN 1313-2048Endat"}
+          if ($var_AnzahlUmlenkrollen.value -eq ""){$var_AnzahlUmlenkrollen.value = "0"}
+          if ($var_AnzahlUmlenkrollenFk.value -eq ""){$var_AnzahlUmlenkrollenFk.value = "0"}
+          if ($var_AnzahlUmlenkrollenGgw.value -eq ""){$var_AnzahlUmlenkrollenGgw.value = "0"}
+          if ($var_Umschlingungswinkel.value -eq ""){$var_Umschlingungswinkel.value = "180"}
+          if ($var_Erkennungsweg.value -eq ""){$var_Erkennungsweg.value = "0"}
+          if ($var_Totzeit.value -eq ""){$var_Totzeit.value = "0"}
+          if ($var_Vdetektor.value -eq ""){$var_Vdetektor.value = "0"}
+          if ($var_KHLicht.value -eq ""){$var_KHLicht.value = "2100"}
+          if ($var_UnterseilGewicht.value -eq ""){$var_UnterseilGewicht.value = "0 kg"}
+          if ($var_LageAntrieb.value -eq ""){$var_LageAntrieb.value = "oben, im Schacht"}
+          #if ($var_SeilabgangAntrieb.value -eq ""){$var_SeilabgangAntrieb.value = "Motorfuss unten"}
+
 
           New-ItemProperty -Path $RegistryPathAll -Name "HtmlFormat" -Value "0" -PropertyType "String" -Force
      
@@ -97,8 +125,8 @@ try {
           $ListZALiftKeys.Add("FH", ([ZALiftKey]$key = New-Object ZALiftKey("LAST", "FH", $var_FH, "String")))
           $ListZALiftKeys.Add("Filename1", ([ZALiftKey]$key = New-Object ZALiftKey("LAST", "Filename1", $var_AuftragsNummer, "String")))
           $ListZALiftKeys.Add("Fkg", ([ZALiftKey]$key = New-Object ZALiftKey("LAST", "Fkg", $var_F, "String")))
-          $ListZALiftKeys.Add("Gkg", ([ZALiftKey]$key = New-Object ZALiftKey("LAST", "Gkg", $var_GGW_Rahmen_Gewicht, "String")))
-          $ListZALiftKeys.Add("Kunde", ([ZALiftKey]$key = New-Object ZALiftKey("LAST", "Kunde", $var_AuftragsNummer, "String")))
+          $ListZALiftKeys.Add("Gkg", ([ZALiftKey]$key = New-Object ZALiftKey("LAST", "Gkg", $var_GegenGewicht_Masse, "String")))
+          $ListZALiftKeys.Add("Kunde", ([ZALiftKey]$key = New-Object ZALiftKey("LAST", "Kunde", $var_Kunde, "String")))
           $ListZALiftKeys.Add("Projektb1", ([ZALiftKey]$key = New-Object ZALiftKey("LAST", "Projektb1", $var_AuftragsNummer, "String")))
           $ListZALiftKeys.Add("Qkg", ([ZALiftKey]$key = New-Object ZALiftKey("LAST", "Qkg", $var_Q, "String")))
           $ListZALiftKeys.Add("V", ([ZALiftKey]$key = New-Object ZALiftKey("LAST", "V", $var_v, "String")))
@@ -117,7 +145,7 @@ try {
           $ListZALiftKeys.Add("Anlage-Art", ([ZALiftKey]$key = New-Object ZALiftKey("ZAL", "Anlage-Art", $var_Bausatz, "String")))
           $ListZALiftKeys.Add("Anlage-FH", ([ZALiftKey]$key = New-Object ZALiftKey("ZAL", "Anlage-FH", $var_FH, "String")))
           $ListZALiftKeys.Add("Anlage-F", ([ZALiftKey]$key = New-Object ZALiftKey("ZAL", "Anlage-F", $var_F, "String")))
-          $ListZALiftKeys.Add("Anlage-G", ([ZALiftKey]$key = New-Object ZALiftKey("ZAL", "Anlage-G", $var_GGW_Rahmen_Gewicht, "String")))
+          $ListZALiftKeys.Add("Anlage-G", ([ZALiftKey]$key = New-Object ZALiftKey("ZAL", "Anlage-G", $var_GegenGewicht_Masse, "String")))
           $ListZALiftKeys.Add("Anlage-Q", ([ZALiftKey]$key = New-Object ZALiftKey("ZAL", "Anlage-Q", $var_Q, "String")))
           $ListZALiftKeys.Add("Anlage-URF", ([ZALiftKey]$key = New-Object ZALiftKey("ZAL", "Anlage-URF", $var_AnzahlUmlenkrollenFk, "String")))
           $ListZALiftKeys.Add("Anlage-URG", ([ZALiftKey]$key = New-Object ZALiftKey("ZAL", "Anlage-URG", $var_AnzahlUmlenkrollenGgw, "String")))
@@ -141,6 +169,14 @@ try {
           $ListZALiftKeys.Add("Bremse-Lueftueberwachung", ([ZALiftKey]$key = New-Object ZALiftKey("ZAL", "Bremse-Lueftueberwachung", $var_Handlueftung, "String")))
           $ListZALiftKeys.Add("Regler-Typ", ([ZALiftKey]$key = New-Object ZALiftKey("ZAL", "Regler-Typ", $var_ZA_IMP_Regler_Typ, "String")))
           $ListZALiftKeys.Add("Geber-Typ", ([ZALiftKey]$key = New-Object ZALiftKey("ZAL", "Geber-Typ", $var_MotorGeber, "String")))
+          $ListZALiftKeys.Add("bfsu", ([ZALiftKey]$key = New-Object ZALiftKey("LAST", "bfsu", $var_UnterseilGewicht, "String")))
+          $ListZALiftKeys.Add("FSU", ([ZALiftKey]$key = New-Object ZALiftKey("LAST", "FSU", $var_UnterseilGewicht, "String")))
+          $ListZALiftKeys.Add("sukg", ([ZALiftKey]$key = New-Object ZALiftKey("LAST", "sukg", $var_UnterseilGewicht, "String")))
+          $ListZALiftKeys.Add("Anlage-bfsu", ([ZALiftKey]$key = New-Object ZALiftKey("ZAL", "Anlage-bfsu", $var_UnterseilGewicht, "String")))
+          $ListZALiftKeys.Add("MLAGE", ([ZALiftKey]$key = New-Object ZALiftKey("LAST", "MLAGE", $var_LageAntrieb, "String")))
+          $ListZALiftKeys.Add("NLAGE", ([ZALiftKey]$key = New-Object ZALiftKey("LAST", "NLAGE", $var_LageAntrieb, "String")))
+          $ListZALiftKeys.Add("Anlage-MLAGE", ([ZALiftKey]$key = New-Object ZALiftKey("ZAL", "Anlage-MLAGE", $var_LageAntrieb, "String")))
+          $ListZALiftKeys.Add("Anlage-NLAGE", ([ZALiftKey]$key = New-Object ZALiftKey("ZAL", "Anlage-NLAGE", $var_LageAntrieb, "String")))
 
           foreach ($par in $ListZALiftKeys.Values) {
                switch ($par.RegistrySubPath) {
@@ -192,39 +228,6 @@ try {
                                    $newValue = $ropeSplit[0].Replace("D", "").Trim()
                               }
                          }
-                         else {
-                              if ($par.Key -eq "Seilalt") {
-                                   $newValue = "DRAKO 250 T - CA067/2"
-                              }
-                              else {
-                                   $newValue = "6,5"
-                              }
-                         }
-                    }
-                    { ($_ -eq "ZUM") -or ($_ -eq "ZUMF") -or ($_ -eq "ZUMG") } {
-                         
-                         if ($par.Value.value -ne ""){
-                              $newValue = $par.Value.value
-                         }
-                         else{
-                              $newValue = "0"  
-                         }
-                    }
-                    "Z" {
-                         if ($par.Value.value -ne ""){
-                              $newValue = $par.Value.value
-                         }
-                         else{
-                              $newValue = "2"  
-                         }
-                    }
-                    "BETA" {
-                         if ($par.Value.value -ne ""){
-                              $newValue = $par.Value.value
-                         }
-                         else{
-                              $newValue = "180"  
-                         }
                     }
                     "EN81-20" {
                          if ($par.Value.value.StartsWith("EN81-20")) {
@@ -234,16 +237,10 @@ try {
                               $newValue = "0"
                          }
                     }
-                    "Kunde" {
-                         $newValue = "Berchtenbreiter GmbH"
-                    }
                     { ($_ -eq "Gkg") -or ($_ -eq "Anlage-G") } {
 
                          if ($var_GegenGewicht_Masse.value -ne "") {
                               $newValue = $var_GegenGewicht_Masse.value
-                         }
-                         else {
-                              $newValue = "0"      
                          }
                     }
                     "A3_Ausloesegeschwindigkeit" {
@@ -251,25 +248,16 @@ try {
                               $Vdetektor = [System.Convert]::ToDecimal($par.Value.value, [cultureinfo]::GetCultureInfo('de-DE'))
                               $newValue = ($Vdetektor * 1000).ToString()
                          }
-                         else {
-                              $newValue = "0"
-                         }
                     }
                     "A3_Kabinenhoehe" {
                          if ($par.Value.value -ne "") {
                               $newValue = $par.Value.value
-                         }
-                         else {
-                              $newValue = "2100"
                          }
                     }
                     "UCM-Erkennungsweg" {
                          if ($par.Value.value -ne "") {
                               $Erkennungsweg = [System.Convert]::ToDecimal($par.Value.value, [cultureinfo]::GetCultureInfo('de-DE'))
                               $newValue = ($Erkennungsweg / 1000).ToString()
-                         }
-                         else {
-                              $newValue = "0"
                          }
                     }
                     "Filename_next" {
@@ -323,12 +311,36 @@ try {
                               $newValue = $par.Value.value.Replace("ZAdyn4CS", "ZAdyn4CS ")
                          }
                     }
-                    "Geber-Typ" {
-                         if ($par.Value.value -eq "") {
-                              $newValue = "ECN1313ENDAT"
+                    { ($_ -eq "bfsu" ) -or ($_ -eq "FSU") -or ($_ -eq "Anlage-bfsu")-or ($_ -eq "sukg")} {
+                             if (($_ -eq "bfsu") -or ($_ -eq "Anlage-bfsu")){
+                                   if ($par.Value.value.EndsWith("kg")){
+                                        $newValue = "kg"
+                                   }
+                                   else{
+                                        $newValue = "%"
+                                   }
+                              }
+                              else {
+                                   $newValue = $par.Value.value.Split("")[0]
+                              }
+                    }
+                    { ($_ -eq "MLAGE" ) -or ($_ -eq "Anlage-MLAGE")} {
+                         if ($par.Value.value.StartsWith("unten")) {
+                              $newValue = "1"
                          }
                          else {
-                              $newValue = $par.Value.value
+                              $newValue = "0"
+                         }
+                    }
+                    { ($_ -eq "NLAGE" ) -or ($_ -eq "Anlage-NLAGE")} {
+                         if ($par.Value.value.EndsWith("über")) {
+                              $newValue = "0"
+                         }
+                         elseif ($par.Value.value.EndsWith("neben")) {
+                              $newValue = "1"
+                         }
+                         else{
+                              $newValue = "2"
                          }
                     }
                     Default {
