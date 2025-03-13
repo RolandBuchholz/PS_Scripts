@@ -6,7 +6,7 @@
      File Name : SetVaultFile.ps1
      Author : Buchholz Roland – roland.buchholz@berchtenbreiter-gmbh.de
 .VERSION
-       Version 1.24 – bugfix DB-ModifikationsUpload
+       Version 1.25 – add ZUES-Category
 .EXAMPLE
      Beispiel wie das Script aufgerufen wird > SetVaultFile.ps1 -Auftragsnummer 8951234 $true
                                                                             (Auftragsnummer)(CustomFile optional)  
@@ -315,12 +315,12 @@ try {
                 $vaultFolderBerechnungenPDF = $vault.DocumentService.GetFolderByPath($vaultPathBerechnungenPDF)
                 $files = $vault.DocumentService.GetLatestFilesByFolderId($vaultFolderBerechnungenPDF.Id, $true)
                 foreach ($file in $files) {
-                    if ($file.Cat.CatName -eq "Office" -and $file.Name.EndsWith(".pdf")) {
+                    if (($file.Cat.CatName -eq "Office" -or $file.Cat.CatName -eq "ZÜS-Unterlagen") -and $file.Name.EndsWith(".pdf")) {
 
                         $props = $vault.PropertyService.GetPropertiesByEntityIds("FILE", @($file.Id))
                         $custProps = $props | Where-Object { $custPropDefIds -contains $_.PropDefId }
 
-                        if ((($custProps | Where-Object { $_.PropDefId -eq 26 }).Val -eq "Berechnungen") -and (($custProps | Where-Object { $_.PropDefId -eq 104 }).Val -eq "CFP")) {
+                        if ((($custProps | Where-Object { $_.PropDefId -eq 26 }).Val -eq "Berechnungen") -and (($custProps | Where-Object { $_.PropDefId -eq 104 }).Val.StartsWith("CFP"))) {
                             $toDeleteVaultFiles += $file
                         }  
                     }
@@ -332,12 +332,12 @@ try {
                 $vaultFolderTUEVZertifikate = $vault.DocumentService.GetFolderByPath($vaultPathTUEVZertifikate)
                 $files = $vault.DocumentService.GetLatestFilesByFolderId($vaultFolderTUEVZertifikate.Id, $true)
                 foreach ($file in $files) {
-                    if ($file.Cat.CatName -eq "Office" -and $file.Name.EndsWith(".pdf")) {
+                    if (($file.Cat.CatName -eq "Office" -or $file.Cat.CatName -eq "ZÜS-Unterlagen") -and $file.Name.EndsWith(".pdf")) {
 
                         $props = $vault.PropertyService.GetPropertiesByEntityIds("FILE", @($file.Id))
                         $custProps = $props | Where-Object { $custPropDefIds -contains $_.PropDefId }
 
-                        if (($custProps | Where-Object { $_.PropDefId -eq 104 }).Val -eq "CFP") {
+                        if (($custProps | Where-Object { $_.PropDefId -eq 104 }).Val.StartsWith("CFP")) {
                             $toDeleteVaultFiles += $file
                         }  
                     }
@@ -445,8 +445,16 @@ try {
                     $newProps.Add('Projekt', $Auftragsnummer)
                     $newProps.Add('Verfasser', $verfasser)
                     $newProps.Add('Kategorie', $Kategorie)
-                    if ($uploadFile.Cat.CatName -ne "Office") {
-                        $vault.DocumentServiceExtensions.UpdateFileCategories($uploadFile.MasterId, 3, $uploadFile.Comm)
+
+                    if ($verfasser -eq "CFP-TÜV") {
+                        if ($uploadFile.Cat.CatName -ne "ZÜS-Unterlagen") {
+                            $vault.DocumentServiceExtensions.UpdateFileCategories($uploadFile.MasterId, 40, $uploadFile.Comm)
+                        }
+                    }
+                    else{
+                        if ($uploadFile.Cat.CatName -ne "Office") {
+                            $vault.DocumentServiceExtensions.UpdateFileCategories($uploadFile.MasterId, 3, $uploadFile.Comm)
+                        }
                     }
                 }
                 ".json" {
