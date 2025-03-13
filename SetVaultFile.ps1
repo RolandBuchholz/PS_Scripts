@@ -332,15 +332,7 @@ try {
                 $vaultFolderTUEVZertifikate = $vault.DocumentService.GetFolderByPath($vaultPathTUEVZertifikate)
                 $files = $vault.DocumentService.GetLatestFilesByFolderId($vaultFolderTUEVZertifikate.Id, $true)
                 foreach ($file in $files) {
-                    if (($file.Cat.CatName -eq "Office" -or $file.Cat.CatName -eq "ZÜS-Unterlagen") -and $file.Name.EndsWith(".pdf")) {
-
-                        $props = $vault.PropertyService.GetPropertiesByEntityIds("FILE", @($file.Id))
-                        $custProps = $props | Where-Object { $custPropDefIds -contains $_.PropDefId }
-
-                        if (($custProps | Where-Object { $_.PropDefId -eq 104 }).Val.StartsWith("CFP")) {
-                            $toDeleteVaultFiles += $file
-                        }  
-                    }
+                    $toDeleteVaultFiles += $file
                 } 
             }
             foreach ($toDeleteVaultFile in $toDeleteVaultFiles) {
