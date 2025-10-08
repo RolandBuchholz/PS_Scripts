@@ -6,7 +6,7 @@
      File Name : SetVaultFile.ps1
      Author : Buchholz Roland – roland.buchholz@berchtenbreiter-gmbh.de
 .VERSION
-       Version 1.25 – add ZUES-Category
+       Version 1.26 – increase deleteCounter
 .EXAMPLE
      Beispiel wie das Script aufgerufen wird > SetVaultFile.ps1 -Auftragsnummer 8951234 $true
                                                                             (Auftragsnummer)(CustomFile optional)  
@@ -310,7 +310,7 @@ try {
             $propDefs = $vault.PropertyService.GetPropertyDefinitionsByEntityClassId("FILE")
             $custPropDefIds = $propDefs | Where-Object { $_.IsSys -eq $false } | Select-Object -ExpandProperty Id
 
-            if ($berechnungenPDFFiles.Count -gt 3) {
+            if ($berechnungenPDFFiles.Count -gt 8) {
                 $vaultPathBerechnungenPDF = ($targetPath + "/" + $pathExtBerechnungenPDF).TrimEnd("/")
                 $vaultFolderBerechnungenPDF = $vault.DocumentService.GetFolderByPath($vaultPathBerechnungenPDF)
                 $files = $vault.DocumentService.GetLatestFilesByFolderId($vaultFolderBerechnungenPDF.Id, $true)
