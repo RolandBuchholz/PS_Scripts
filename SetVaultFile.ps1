@@ -6,7 +6,7 @@
      File Name : SetVaultFile.ps1
      Author : Buchholz Roland – roland.buchholz@berchtenbreiter-gmbh.de
 .VERSION
-       Version 1.26 – increase deleteCounter
+       Version 1.27 – date comparison pdf Calc
 .EXAMPLE
      Beispiel wie das Script aufgerufen wird > SetVaultFile.ps1 -Auftragsnummer 8951234 $true
                                                                             (Auftragsnummer)(CustomFile optional)  
@@ -86,6 +86,45 @@ function LogOut {
 function Remove-EmptyFolders([string]$folders) {
     Get-Childitem $folders -Recurse | Where-Object { $_.PSIsContainer -and !(Get-Childitem $_.Fullname -Recurse | 
             Where-Object { !$_.PSIsContainer }) } | Remove-Item -Force -Recurse -ErrorAction SilentlyContinue
+}
+
+function AddObsoleteCalculations {
+    $ObsoleteCalculations = @()
+
+    if ($berechnungenPDFFiles.Count -le 7) {
+        return $ObsoleteCalculations
+    }
+
+    $propDefs = $vault.PropertyService.GetPropertyDefinitionsByEntityClassId("FILE")
+    $custPropDefIds = $propDefs | Where-Object { $_.IsSys -eq $false } | Select-Object -ExpandProperty Id
+    $vaultPathBerechnungenPDF = ($targetPath + "/" + $pathExtBerechnungenPDF).TrimEnd("/")
+    $vaultFolderBerechnungenPDF = $vault.DocumentService.GetFolderByPath($vaultPathBerechnungenPDF)
+    $files = $vault.DocumentService.GetLatestFilesByFolderId($vaultFolderBerechnungenPDF.Id, $true)
+
+    $liftDataWorkspace = $berechnungenPDFFiles | Where-Object { $_.Name -match 'Anlagedaten' -or $_.Name -match 'Lift data' -or $_.Name -match 'Données techniques de l´installation' } 
+    $liftDataVault = $files | Where-Object { $_.Name -match 'Anlagedaten' -or $_.Name -match 'Lift data' -or $_.Name -match 'Données techniques de l´installation' }
+    if ($null -eq $liftDataVault -or $null -eq $liftDataWorkspace) {
+        return $ObsoleteCalculations
+    }
+
+    $timeDifference= New-TimeSpan -Start $liftDataVault.ModDate -End $liftDataWorkspace.LastWriteTime
+
+    if ($timeDifference.Seconds -gt 30) {
+        foreach ($file in $files) {
+            if (($file.Cat.CatName -eq "Office" -or $file.Cat.CatName -eq "ZÜS-Unterlagen") -and $file.Name.EndsWith(".pdf")) {
+
+            $props = $vault.PropertyService.GetPropertiesByEntityIds("FILE", @($file.Id))
+            $custProps = $props | Where-Object { $custPropDefIds -contains $_.PropDefId }
+
+            if ((($custProps | Where-Object { $_.PropDefId -eq 26 }).Val -eq "Berechnungen") -and 
+                ( $null -ne ($custProps | Where-Object { $_.PropDefId -eq 104 }).Val) -and 
+                (($custProps | Where-Object { $_.PropDefId -eq 104 }).Val.StartsWith("CFP"))) {
+                    $ObsoleteCalculations += $file
+                }  
+            }
+        } 
+    }
+    return $ObsoleteCalculations
 }
 
 # Auftragsnummervalidierung
@@ -304,37 +343,19 @@ try {
             $berechnungenPDFFiles -match 'Lift data' -or 
             $berechnungenPDFFiles -match 'Données techniques de l´installation') {
         
-            #Daten im Vault löschen
-            $toDeleteVaultFiles = @()
+            #Veraltete Berechnungen im Vault löschen
 
-            $propDefs = $vault.PropertyService.GetPropertyDefinitionsByEntityClassId("FILE")
-            $custPropDefIds = $propDefs | Where-Object { $_.IsSys -eq $false } | Select-Object -ExpandProperty Id
-
-            if ($berechnungenPDFFiles.Count -gt 8) {
-                $vaultPathBerechnungenPDF = ($targetPath + "/" + $pathExtBerechnungenPDF).TrimEnd("/")
-                $vaultFolderBerechnungenPDF = $vault.DocumentService.GetFolderByPath($vaultPathBerechnungenPDF)
-                $files = $vault.DocumentService.GetLatestFilesByFolderId($vaultFolderBerechnungenPDF.Id, $true)
-                foreach ($file in $files) {
-                    if (($file.Cat.CatName -eq "Office" -or $file.Cat.CatName -eq "ZÜS-Unterlagen") -and $file.Name.EndsWith(".pdf")) {
-
-                        $props = $vault.PropertyService.GetPropertiesByEntityIds("FILE", @($file.Id))
-                        $custProps = $props | Where-Object { $custPropDefIds -contains $_.PropDefId }
-
-                        if ((($custProps | Where-Object { $_.PropDefId -eq 26 }).Val -eq "Berechnungen") -and (($custProps | Where-Object { $_.PropDefId -eq 104 }).Val.StartsWith("CFP"))) {
-                            $toDeleteVaultFiles += $file
-                        }  
-                    }
-                } 
-            }
+            $toDeleteVaultFiles = AddObsoleteCalculations
 
             if ($zertifikateFiles.Count -gt 0) {
                 $vaultPathTUEVZertifikate = ($targetPath + "/" + $pathExtTUEVZertifikate).TrimEnd("/")
                 $vaultFolderTUEVZertifikate = $vault.DocumentService.GetFolderByPath($vaultPathTUEVZertifikate)
-                $files = $vault.DocumentService.GetLatestFilesByFolderId($vaultFolderTUEVZertifikate.Id, $true)
-                foreach ($file in $files) {
-                    $toDeleteVaultFiles += $file
+                $certificatefiles = $vault.DocumentService.GetLatestFilesByFolderId($vaultFolderTUEVZertifikate.Id, $true)
+                foreach ($certificateFile in $certificateFiles) {
+                    $toDeleteVaultFiles += $certificateFile
                 } 
             }
+
             foreach ($toDeleteVaultFile in $toDeleteVaultFiles) {
                 try {
                     $toDeleteFolder = $vault.DocumentService.GetFoldersByFileMasterId($toDeleteVaultFile.MasterId)
